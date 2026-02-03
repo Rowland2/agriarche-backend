@@ -7,13 +7,5 @@ python-multipart==0.0.6
 pandas==2.1.4
 openpyxl==3.1.2
 
-# Frontend & Visualization
-streamlit==1.31.0
-plotly==5.18.0
+# HTTP
 requests==2.31.0
-
-# PDF Generation
-reportlab==4.0.9
-
-# Cloud Data Connection
-st-gsheets-connection==0.0.3
