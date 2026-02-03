@@ -37,28 +37,45 @@ def fetch_data():
 def full_analysis(commodity: str, month: str, years: str = "", market: str = "All Markets"):
     df = fetch_data()
     
-    # 1. Standardize column types
+    # DEBUG PRINTS: Check Render Logs for these!
+    print(f"--- FETCHED {len(df)} ROWS FROM DATABASE ---")
+    print(f"--- LOOKING FOR: {commodity} in {month} ---")
+
+    # 1. Date Conversion
     df['Start Time'] = pd.to_datetime(df['Start Time'])
     df['month_name'] = df['Start Time'].dt.strftime('%B')
-    df['year_str'] = df['Start Time'].dt.year.astype(str)
     
-    # 2. Filtering using EXACT capitalization from Screenshot (1083)
+    # 2. Filtering (Matching Excel Capitalization)
     df = df[df['Commodity'] == commodity]
+    print(f"Rows after commodity filter: {len(df)}")
+    
     df = df[df['month_name'] == month]
+    print(f"Rows after month filter: {len(df)}")
     
     if market != "All Markets":
         df = df[df['Market'] == market]
-    
-    if years:
-        selected_years = years.split(',')
-        df = df[df['year_str'].isin(selected_years)]
+        print(f"Rows after market filter: {len(df)}")
 
-    # 3. SAFETY CHECK: If no data found, return empty results instead of crashing
+    # 3. SAFETY CHECK: Return early if empty to avoid math crashes
     if df.empty:
+        print("!!! DATASET IS EMPTY - RETURNING ZEROES !!!")
         return {
-            "chart_data": [],
+            "chart_data": [], 
             "metrics": {"avg": 0, "max": 0, "min": 0}
         }
+
+    # 4. Success: Prepare data for the orange Plotly chart
+    # Use 'Start Time' for the X-axis as seen in your screenshot
+    result = df[['Market', 'price_per_kg', 'Price per Bag', 'Start Time']].to_dict(orient='records')
+    
+    return {
+        "chart_data": result,
+        "metrics": {
+            "avg": round(float(df['price_per_kg'].mean()), 2),
+            "max": float(df['price_per_kg'].max()),
+            "min": float(df['price_per_kg'].min())
+        }
+    }
 
     # 4. Success: Prepare data for the orange Plotly chart
     result = df[['Market', 'price_per_kg', 'Price per Bag', 'Start Time']].to_dict(orient='records')
