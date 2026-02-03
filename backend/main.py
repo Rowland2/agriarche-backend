@@ -72,7 +72,7 @@ def full_analysis(commodity: str, month: str, years: str = "", market: str = "Al
     df['price_per_kg'] = df['Price per Bag'] / df['kg per bag']
 
     # 4. Date conversion
-    df['Start Time'] = pd.to_datetime(df['Start Time'])
+    df['Start Time'] = pd.to_datetime(df['Start Time'], format='mixed')
     df['month_name'] = df['Start Time'].dt.strftime('%B')
     
     # 5. Filtering (Case-insensitive for robustness)
