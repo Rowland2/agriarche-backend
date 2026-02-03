@@ -22,15 +22,16 @@ def get_intelligence(commodity: str):
     return {"info": info}
 
 def fetch_data():
-    # Priority: current folder, then parent folder
+    # LOOK FOR THE DATABASE, NOT THE EXCEL FILE
     db_path = 'kasuwa.db' if os.path.exists('kasuwa.db') else '../kasuwa.db'
     try:
         conn = sqlite3.connect(db_path)
-        # We use pd.read_sql but ensure we handle potential missing tables
+        # Make sure the table name is 'prices'
         df = pd.read_sql("SELECT * FROM prices", conn)
         conn.close()
         return df
     except Exception as e:
+        # This will tell us if the database itself is missing
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/analysis")
