@@ -53,29 +53,31 @@ def get_intelligence(commodity: str):
 def full_analysis(commodity: str, month: str, years: str = "", market: str = "All Markets"):
     df = fetch_data()
     
-    # 1. Date Conversion
-    df['Start Time'] = pd.to_datetime(df['Start Time'])
-    df['month_name'] = df['Start Time'].dt.strftime('%B')
+    # --- FLEXIBLE COLUMN FIX ---
+    # This automatically finds the 'Start Time' column even if it's named differently
+    date_col = next((c for c in df.columns if c.lower().replace(" ", "_") == "start_time"), None)
     
-    # 2. Filtering
+    if not date_col:
+        # Fallback: if we still can't find it, show the user what columns actually exist
+        raise HTTPException(status_code=500, detail=f"Column 'Start Time' not found. Available: {list(df.columns)}")
+
+    # Use the discovered column name
+    df['Start Time'] = pd.to_datetime(df[date_col])
+    df['month_name'] = df['Start Time'].dt.strftime('%B')
+    # ---------------------------
+
+    # The rest of your filtering logic...
     df = df[df['Commodity'] == commodity]
     df = df[df['month_name'] == month]
     
     if market != "All Markets":
         df = df[df['Market'] == market]
 
-    # 3. SAFETY CHECK: Return zeroes if no data found
     if df.empty:
-        return {
-            "chart_data": [], 
-            "metrics": {"avg": 0, "max": 0, "min": 0}
-        }
+        return {"chart_data": [], "metrics": {"avg": 0, "max": 0, "min": 0}}
 
-    # 4. Prepare data for the orange Plotly chart
-    result = df[['Market', 'price_per_kg', 'Price per Bag', 'Start Time']].to_dict(orient='records')
-    
     return {
-        "chart_data": result,
+        "chart_data": df[['Market', 'price_per_kg', 'Price per Bag', 'Start Time']].to_dict(orient='records'),
         "metrics": {
             "avg": round(float(df['price_per_kg'].mean()), 2),
             "max": float(df['price_per_kg'].max()),
