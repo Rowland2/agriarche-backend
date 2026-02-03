@@ -12,7 +12,13 @@ api_key_header = APIKeyHeader(name="access_token")
 
 @app.get("/")
 def home():
-    return {"status": "Agriarche API is online", "database": "Connected"}
+    import os
+    db_exists = os.path.exists('kasuwa.db') or os.path.exists('../kasuwa.db')
+    return {
+        "status": "Agriarche API is online", 
+        "database_file_found": db_exists,
+        "current_directory": os.getcwd()
+    }
 
 @app.get("/intelligence/{commodity}")
 def get_intelligence(commodity: str):
