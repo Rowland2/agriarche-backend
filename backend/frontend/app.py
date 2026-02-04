@@ -3,16 +3,17 @@ import requests
 import pandas as pd
 import plotly.express as px
 
-# UI CONFIG
+# --- UI CONFIG ---
 st.set_page_config(page_title="Agriarche Dashboard", layout="wide")
 
 # --- API CONFIGURATION ---
+# Base URL of your live Render backend
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
 st.title("🌾 Agriarche Intelligence Hub")
 
-# --- SIDEBAR ---
+# --- SIDEBAR FILTERS ---
 st.sidebar.header("Market Filters")
 
 commodity = st.sidebar.selectbox(
@@ -31,24 +32,27 @@ month = st.sidebar.selectbox(
      "July", "August", "September", "October", "November", "December"]
 )
 
+# Year selection (Note: Backend currently handles filter by commodity/month/market)
 years = st.sidebar.multiselect("Year", [2024, 2025, 2026], default=[2026])
 
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
-db_column = "price_per_kg" if price_choice == "Price per Kg" else "Price per Bag"
+
+# Mapping UI selection to the exact snake_case columns in your Neon DB
+db_column = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
 # --- FETCH & DISPLAY DATA ---
 try:
+    # Prepare parameters for the /analysis endpoint
     analysis_params = {
         "commodity": commodity,
         "month": month,
-        "market": market,
-        "years": ",".join(map(str, years))
+        "market": market
     }
 
     # 1. Fetch Analysis & Chart Data
     response = requests.get(f"{BASE_URL}/analysis", params=analysis_params, headers=HEADERS)
     
-    # 2. Fetch Intelligence Description
+    # 2. Fetch Intelligence Description (If route exists)
     intel_response = requests.get(f"{BASE_URL}/intelligence/{commodity}", headers=HEADERS)
     intel_data = intel_response.json() if intel_response.status_code == 200 else {}
 
@@ -57,18 +61,21 @@ try:
         metrics = data_package.get("metrics")
         chart_data = data_package.get("chart_data")
 
-        # Check if we have data to display
-        if metrics and (metrics.get('avg', 0) or 0) > 0:
+        # Check if we have valid data (Avg > 0)
+        if metrics and metrics.get('avg', 0) > 0:
             st.markdown(f"<h2 style='color: #1F7A3F; text-align: center;'>Kasuwa Internal Price Trend: {commodity} ({price_choice})</h2>", unsafe_allow_html=True)
 
             # --- THE TREND CHART ---
             if chart_data:
                 df_plot = pd.DataFrame(chart_data)
                 
+                # Convert price columns to numeric just in case they arrived as strings
+                df_plot[db_column] = pd.to_numeric(df_plot[db_column], errors='coerce')
+                
                 fig = px.line(
                     df_plot,
-                    x="Start Time", 
-                    y=db_column, 
+                    x="start_time",  # Match snake_case from Backend
+                    y=db_column,     # Match snake_case from Backend
                     markers=True,
                     text=df_plot[db_column].round(2),
                     title=f"{commodity} Price Trend"
@@ -101,6 +108,7 @@ try:
             with col3:
                 st.markdown(f"<div style='{card_style}'><b>Lowest Price</b><br><h2 style='color: #1F7A3F;'>₦{metrics['min']:,.2f}</h2></div>", unsafe_allow_html=True)
 
+            # Display intelligence if available
             if intel_data.get("info"):
                 st.info(f"**Intelligence:** {intel_data['info'].get('desc')}")
         else:

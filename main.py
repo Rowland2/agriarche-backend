@@ -18,6 +18,18 @@ engine = create_engine(DATABASE_URL)
 API_KEY = "Agriarche_Internal_Key_2026"
 api_key_header = APIKeyHeader(name="access_token")
 
+# --- MOCK INTELLIGENCE DATA ---
+# This serves the 'info' your Streamlit app is looking for
+CROP_INTELLIGENCE = {
+    "maize white": "Maize is a staple energy source. Current trends show price stability due to recent harvests.",
+    "soya beans": "High demand for poultry feed continues to drive soy prices globally and locally.",
+    "rice paddy": "Local rice production is increasing; keep an eye on milling costs and fuel prices for transport.",
+    "cowpea white": "A major protein source. Prices typically fluctuate based on storage availability in the North.",
+    "groundnut gargaja": "A key oilseed. Market volume is steady, with strong interest from local processors.",
+    "millet": "Resilient to dry weather, millet remains a vital food security crop in arid regions.",
+    "sorghum red": "Primarily used for industrial brewing and local flour; demand remains consistent."
+}
+
 @app.get("/")
 def home():
     return {
@@ -33,26 +45,32 @@ def fetch_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cloud Database Error: {str(e)}")
 
-# --- NEW VERIFICATION ROUTE ---
 @app.get("/prices")
 def get_all_prices():
-    """Returns all data from the database to verify the connection is working."""
+    """Returns all data from the database to verify the connection."""
     try:
         df = fetch_data()
-        # Convert timestamp objects to strings for JSON compatibility
         if 'start_time' in df.columns:
             df['start_time'] = df['start_time'].astype(str)
         return df.to_dict(orient='records')
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
+@app.get("/intelligence/{commodity}")
+def get_intelligence(commodity: str):
+    """Provides market descriptions for the Streamlit info box."""
+    desc = CROP_INTELLIGENCE.get(commodity.lower(), "Market intelligence currently being updated for this commodity.")
+    return {"info": {"desc": desc}}
+
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets"):
     df = fetch_data() 
     
+    # 1. Date Processing
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['month_name'] = df['start_time'].dt.strftime('%B')
     
+    # 2. Filtering
     df = df[df['commodity'].str.lower() == commodity.lower()]
     df = df[df['month_name'].str.lower() == month.lower()]
     
@@ -61,6 +79,10 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets"):
 
     if df.empty:
         return {"chart_data": [], "metrics": {"avg": 0, "max": 0, "min": 0}}
+
+    # 3. Numeric Safety (Ensures calculations don't fail)
+    df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
+    df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
 
     return {
         "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time']].astype(str).to_dict(orient='records'),
