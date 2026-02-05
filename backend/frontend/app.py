@@ -23,7 +23,6 @@ COMMODITY_INFO = {
     "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
 }
 
-# Helper to flip names: "Maize White" -> "White Maize"
 def format_commodity_name(name):
     parts = name.split()
     colors = ["white", "brown", "red", "yellow", "black"]
@@ -49,31 +48,15 @@ st.markdown(f"""
             font-weight: bold !important;
         }}
         h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
-        
-        /* Clean Intelligence Box Styling */
         .advisor-container {{
-            background-color: #FFFFFF;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid {ACCENT_COLOR};
-            margin-top: 20px;
+            background-color: #FFFFFF; padding: 20px; border-radius: 10px;
+            border-left: 5px solid {ACCENT_COLOR}; margin-top: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }}
-
-        /* Curved KPI Card Styling */
-        .metric-container {{
-            display: flex;
-            justify-content: space-between;
-            gap: 15px;
-            margin-top: 30px;
-        }}
+        .metric-container {{ display: flex; justify-content: space-between; gap: 15px; margin-top: 30px; }}
         .metric-card {{
-            background-color: white;
-            padding: 20px;
-            border-radius: 15px;
-            border-left: 8px solid {PRIMARY_COLOR};
-            box-shadow: 2px 4px 10px rgba(0,0,0,0.05);
-            width: 100%;
+            background-color: white; padding: 20px; border-radius: 15px;
+            border-left: 8px solid {PRIMARY_COLOR}; box-shadow: 2px 4px 10px rgba(0,0,0,0.05); width: 100%;
         }}
         .metric-label {{ font-size: 14px; color: #555; font-weight: bold; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
@@ -87,13 +70,15 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # --- 4. SIDEBAR (DYNAMIC) ---
 st.sidebar.title("Market Filters")
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60) # Reduced TTL so data updates faster
 def get_dynamic_filters():
     try:
+        # Fetching ALL data without params to get unique markets/commodities
         res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
         if res.status_code == 200:
-            df = pd.DataFrame(res.json().get("chart_data", []))
-            return sorted(df['commodity'].unique().tolist()), sorted(df['market'].unique().tolist())
+            raw_data = res.json().get("chart_data", [])
+            df_full = pd.DataFrame(raw_data)
+            return sorted(df_full['commodity'].unique().tolist()), sorted(df_full['market'].unique().tolist())
     except:
         pass
     return list(COMMODITY_INFO.keys()), ["Biliri", "Dawanau", "Potiskum", "Giwa"]
@@ -117,12 +102,16 @@ try:
     
     if response.status_code == 200:
         data = response.json()
-        metrics = data.get("metrics")
         chart_data = data.get("chart_data")
 
         if chart_data:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
+            
+            # --- FIX: DATA CLEANING (Ignoring the 95/100 outlier locally until you run the SQL) ---
+            # This ensures the KPI cards don't show the error values while you are working on the DB
+            df_filtered = df[df[target_col] > 150].copy() if "Soya" in commodity_raw else df.copy()
+            
             df['start_time'] = pd.to_datetime(df['start_time'])
             df['day'] = df['start_time'].dt.day
             df['year'] = df['start_time'].dt.year.astype(str)
@@ -151,27 +140,31 @@ try:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- CURVED KPI CARDS ---
+            # --- CALCULATE DYNAMIC METRICS FOR KPI CARDS ---
+            # This ensures KPI cards change when you switch between Kg and Bag
+            avg_val = df_filtered[target_col].mean()
+            max_val = df_filtered[target_col].max()
+            min_val = df_filtered[target_col].min()
+
             st.markdown(f"""
                 <div class="metric-container">
                     <div class="metric-card">
-                        <div class="metric-label">Avg Kasuwa internal price</div>
-                        <div class="metric-value">₦{metrics['avg']:,.0f}</div>
+                        <div class="metric-label">Avg Kasuwa internal price ({price_choice})</div>
+                        <div class="metric-value">₦{avg_val:,.0f}</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-label">Highest Kasuwa internal price</div>
-                        <div class="metric-value">₦{metrics['max']:,.0f}</div>
+                        <div class="metric-label">Highest Kasuwa internal price ({price_choice})</div>
+                        <div class="metric-value">₦{max_val:,.0f}</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-label">Lowest Kasuwa internal price</div>
-                        <div class="metric-value">₦{metrics['min']:,.0f}</div>
+                        <div class="metric-label">Lowest Kasuwa internal price ({price_choice})</div>
+                        <div class="metric-value">₦{min_val:,.0f}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- COMMODITY INTELLIGENCE SECTION (MATCHING SCREENSHOT 2) ---
+            # --- COMMODITY INTELLIGENCE SECTION ---
             info = COMMODITY_INFO.get(commodity_raw, {"desc": "Detailed market data arriving soon.", "markets": "Regional Hubs", "abundance": "Seasonal", "note": "Monitor daily for updates."})
-            
             st.markdown(f"""
                 <div class="advisor-container">
                     <p style="font-size: 18px; color: {PRIMARY_COLOR}; margin-bottom: 5px;">
