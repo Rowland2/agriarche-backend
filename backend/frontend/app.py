@@ -20,7 +20,6 @@ st.markdown(f"""
             background-color: #FFFFFF !important;
             color: #000000 !important;
         }}
-        div[role="listbox"] ul li {{ color: #000000 !important; }}
         section[data-testid="stSidebar"] .stMarkdown p, 
         section[data-testid="stSidebar"] label {{
             color: #000000 !important;
@@ -28,51 +27,38 @@ st.markdown(f"""
         }}
         h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
         
-        /* KPI Card Styling - CURVED & RECTANGULAR */
+        /* Curved KPI Card Styling */
         .metric-container {{
             display: flex;
             justify-content: space-between;
             gap: 15px;
             margin-top: 30px;
-            margin-bottom: 20px;
         }}
         .metric-card {{
             background-color: white;
             padding: 20px;
-            border-radius: 15px; /* Curved corners matching Screenshot 1128 */
-            border-left: 8px solid {PRIMARY_COLOR}; /* Stronger left accent */
+            border-radius: 15px;
+            border-left: 8px solid {PRIMARY_COLOR};
             box-shadow: 2px 4px 10px rgba(0,0,0,0.05);
             width: 100%;
-            text-align: left;
         }}
-        .metric-label {{ font-size: 14px; color: #555; font-weight: bold; margin-bottom: 5px; }}
+        .metric-label {{ font-size: 14px; color: #555; font-weight: bold; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
-
-        /* AI Advisor Styling */
-        .advisor-container {{
-            background-color: #FFFFFF;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid {PRIMARY_COLOR};
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }}
-        .stAlert p {{ color: #000000 !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. API CONFIGURATION ---
+# --- 3. API CONFIG ---
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
-# --- 4. SIDEBAR FILTERS ---
+# --- 4. SIDEBAR ---
 st.sidebar.title("Market Filters")
 commodity = st.sidebar.selectbox("Select Commodity", ["Maize White", "Soya Beans", "Rice Paddy", "Millet", "Sorghum Red", "Cowpea White"])
 market = st.sidebar.selectbox("Select Market", ["All Markets", "Biliri", "Dawanau", "Potiskum", "Giwa"])
 month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
-db_column = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
+target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
 # --- 5. MAIN CONTENT ---
 st.title("Commodity Pricing Intelligence Dashboard")
@@ -86,37 +72,41 @@ try:
         metrics = data.get("metrics")
         chart_data = data.get("chart_data")
 
-        if chart_data and metrics:
-            # --- DATA CLEANING & CONVERSION ---
+        if chart_data:
             df = pd.DataFrame(chart_data)
-            
-            # This fixes the 'dtype->object' error by forcing prices to numbers
-            df[db_column] = pd.to_numeric(df[db_column], errors='coerce')
-            df = df.dropna(subset=[db_column])
-            
+            df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
             df['start_time'] = pd.to_datetime(df['start_time'])
             
-            # --- THE CHART (TOP) ---
-            df_daily = df.groupby(df['start_time'].dt.day)[db_column].mean().reset_index()
-            df_daily.columns = ['Day', 'Price']
+            # Prepare data for grouping
+            df['day'] = df['start_time'].dt.day
+            df['year'] = df['start_time'].dt.year.astype(str)
+            
+            dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            fig = px.line(df_daily, x="Day", y="Price", markers=True, text=df_daily['Price'].round(0))
-            fig.update_traces(
-                line_color=ACCENT_COLOR, 
-                line_width=4, 
-                marker=dict(size=10, color=ACCENT_COLOR, line=dict(width=2, color='white')),
-                textposition="top center"
-            )
+            # --- THE NEW CHART FORMAT ---
+            fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
+                          text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
+                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
+                          labels={"day": "Day of Month", target_col: f"{price_choice} (₦)"})
+            
+            fig.update_traces(textposition="top center")
             fig.update_layout(
-                plot_bgcolor="white",
-                xaxis=dict(showline=True, linewidth=4, linecolor='black', title="<b>Day of Month</b>"),
-                yaxis=dict(showline=True, linewidth=4, linecolor='black', title=f"<b>{price_choice} (₦)</b>"),
-                height=450,
-                margin=dict(t=20, b=20)
+                plot_bgcolor="white", paper_bgcolor="white", 
+                font=dict(color="black", family="Arial Black"),
+                xaxis=dict(
+                    title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
+                    tickfont=dict(size=14, color="black", family="Arial Black"), 
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                ),
+                yaxis=dict(
+                    title=dict(text=f"<b>{price_choice} (₦)</b>", font=dict(size=16, color="black")),
+                    tickfont=dict(size=14, color="black", family="Arial Black"), 
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                )
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- THE KPI CARDS (BOTTOM - CURVED & LONG) ---
+            # --- CURVED KPI CARDS ---
             st.markdown(f"""
                 <div class="metric-container">
                     <div class="metric-card">
