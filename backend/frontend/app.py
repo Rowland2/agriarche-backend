@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+import time  # New import for cache busting
 
 # --- 1. BRANDING CONFIGURATION ---
 PRIMARY_COLOR = "#1F7A3F"  # Forest Green
@@ -70,28 +71,26 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # --- 4. SIDEBAR (DYNAMIC & LIVE) ---
 st.sidebar.title("Market Filters")
 
-@st.cache_data(ttl=10) 
+@st.cache_data(ttl=5) 
 def get_dynamic_filters():
     try:
-        # We fetch all available data to ensure we see every market in the database
+        # Fetching data to extract every unique market in the DB
         res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
         if res.status_code == 200:
             raw_data = res.json().get("chart_data", [])
             if raw_data:
                 df_full = pd.DataFrame(raw_data)
                 
-                # Extract Commodities
+                # Extract all unique commodities
                 db_comms = sorted(df_full['commodity'].dropna().unique().tolist())
                 
-                # Extract Markets: We convert to string and strip to handle any hidden spaces
-                db_mkts = df_full['market'].dropna().unique().tolist()
-                db_mkts = sorted([str(m).strip() for m in db_mkts if str(m).strip() != ""])
+                # Extract EVERY unique market (using set and strip for names like Pambegua)
+                db_mkts = sorted(list(set([str(m).strip() for m in df_full['market'] if m])))
                 
                 return db_comms, db_mkts
     except Exception as e:
         pass
     
-    # Static Fallback
     return list(COMMODITY_INFO.keys()), ["Biliri", "Potiskum", "Giwa", "Kumo"]
 
 # 1. Get the lists
@@ -104,7 +103,7 @@ market = st.sidebar.selectbox("Select Market", market_options)
 month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
-# 3. Define the key variables (Moved here to prevent Traceback Error)
+# 3. Key variables
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
@@ -113,7 +112,13 @@ st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month}")
 
 try:
-    response = requests.get(f"{BASE_URL}/analysis", params={"commodity": commodity_raw, "month": month, "market": market}, headers=HEADERS)
+    # Adding timestamp 'v' to bypass the Render API cache
+    timestamp = int(time.time())
+    response = requests.get(
+        f"{BASE_URL}/analysis", 
+        params={"commodity": commodity_raw, "month": month, "market": market, "v": timestamp}, 
+        headers=HEADERS
+    )
     
     if response.status_code == 200:
         data = response.json()
@@ -123,8 +128,7 @@ try:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
             
-            # --- LOCAL OUTLIER PROTECTION ---
-            # Ignores prices below 150 for Soya Beans to keep the dashboard clean
+            # Outlier protection (Hidden local filter for UI)
             df_filtered = df[df[target_col] > 150].copy() if "Soya" in commodity_raw else df.copy()
             
             df['start_time'] = pd.to_datetime(df['start_time'])
@@ -132,7 +136,7 @@ try:
             df['year'] = df['start_time'].dt.year.astype(str)
             dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            # --- BOLD AXES CHART ---
+            # --- CHART ---
             fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
                           text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
                           color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
@@ -142,20 +146,16 @@ try:
             fig.update_layout(
                 plot_bgcolor="white", paper_bgcolor="white", 
                 font=dict(color="black", family="Arial Black"),
-                xaxis=dict(
-                    title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
+                xaxis=dict(title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
                     tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
-                ),
-                yaxis=dict(
-                    title=dict(text=f"<b>{price_choice} (₦)</b>", font=dict(size=16, color="black")),
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"),
+                yaxis=dict(title=dict(text=f"<b>{price_choice} (₦)</b>", font=dict(size=16, color="black")),
                     tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
-                )
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee")
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- DYNAMIC KPI CARDS ---
+            # --- KPIs ---
             avg_val = df_filtered[target_col].mean()
             max_val = df_filtered[target_col].max()
             min_val = df_filtered[target_col].min()
@@ -177,7 +177,7 @@ try:
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- INTELLIGENCE PANEL ---
+            # --- ADVISORY ---
             info = COMMODITY_INFO.get(commodity_raw, {"desc": "Detailed market data arriving soon.", "markets": "Regional Hubs", "abundance": "Seasonal", "note": "Monitor daily for updates."})
             st.markdown(f"""
                 <div class="advisor-container">
