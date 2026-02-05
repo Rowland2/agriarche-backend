@@ -70,35 +70,39 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # --- 4. SIDEBAR (DYNAMIC & LIVE) ---
 st.sidebar.title("Market Filters")
 
-# We remove the cache or set it very low to ensure new DB imports show up immediately
 @st.cache_data(ttl=10) 
 def get_dynamic_filters():
     try:
-        # We fetch the full list from the analysis endpoint
+        # Fetch data to extract unique values from the database
         res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
         if res.status_code == 200:
             raw_data = res.json().get("chart_data", [])
             if raw_data:
                 df_full = pd.DataFrame(raw_data)
-                # This grabs EVERY market found in your 'prices' table
+                # Drop rows where market is empty or null
+                df_full = df_full.dropna(subset=['market', 'commodity'])
                 db_comms = sorted(df_full['commodity'].unique().tolist())
                 db_mkts = sorted(df_full['market'].unique().tolist())
                 return db_comms, db_mkts
     except Exception as e:
-        st.sidebar.error(f"Filter Sync Error: {e}")
+        pass
     
-    # Only use this if the Database is totally unreachable
+    # Fallback to defaults if API fails
     return list(COMMODITY_INFO.keys()), ["Biliri", "Potiskum", "Giwa", "Kumo"]
 
-# Pull the fresh lists
+# 1. Get the lists
 all_comms, all_mkts = get_dynamic_filters()
 
-# Build the Selectboxes
+# 2. Get the selections
 commodity_raw = st.sidebar.selectbox("Select Commodity", all_comms)
-
-# We ensure 'All Markets' is always at the top of the dynamic list
 market_options = ["All Markets"] + [m for m in all_mkts if m]
 market = st.sidebar.selectbox("Select Market", market_options)
+month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
+
+# 3. Define the key variables used in subheaders and logic
+display_name = format_commodity_name(commodity_raw)
+target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
 # --- 5. MAIN CONTENT ---
 st.title("Commodity Pricing Intelligence Dashboard")
@@ -115,8 +119,8 @@ try:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
             
-            # --- FIX: DATA CLEANING (Ignoring the 95/100 outlier locally until you run the SQL) ---
-            # This ensures the KPI cards don't show the error values while you are working on the DB
+            # --- LOCAL OUTLIER FILTERING ---
+            # Ensures 95/100 doesn't mess up your KPIs until the DB is cleaned
             df_filtered = df[df[target_col] > 150].copy() if "Soya" in commodity_raw else df.copy()
             
             df['start_time'] = pd.to_datetime(df['start_time'])
@@ -147,8 +151,7 @@ try:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- CALCULATE DYNAMIC METRICS FOR KPI CARDS ---
-            # This ensures KPI cards change when you switch between Kg and Bag
+            # --- CALCULATE DYNAMIC METRICS ---
             avg_val = df_filtered[target_col].mean()
             max_val = df_filtered[target_col].max()
             min_val = df_filtered[target_col].min()
