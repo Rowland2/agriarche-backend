@@ -73,34 +73,38 @@ st.sidebar.title("Market Filters")
 @st.cache_data(ttl=10) 
 def get_dynamic_filters():
     try:
-        # Fetch data to extract unique values from the database
+        # We fetch all available data to ensure we see every market in the database
         res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
         if res.status_code == 200:
             raw_data = res.json().get("chart_data", [])
             if raw_data:
                 df_full = pd.DataFrame(raw_data)
-                # Drop rows where market is empty or null
-                df_full = df_full.dropna(subset=['market', 'commodity'])
-                db_comms = sorted(df_full['commodity'].unique().tolist())
-                db_mkts = sorted(df_full['market'].unique().tolist())
+                
+                # Extract Commodities
+                db_comms = sorted(df_full['commodity'].dropna().unique().tolist())
+                
+                # Extract Markets: We convert to string and strip to handle any hidden spaces
+                db_mkts = df_full['market'].dropna().unique().tolist()
+                db_mkts = sorted([str(m).strip() for m in db_mkts if str(m).strip() != ""])
+                
                 return db_comms, db_mkts
     except Exception as e:
         pass
     
-    # Fallback to defaults if API fails
+    # Static Fallback
     return list(COMMODITY_INFO.keys()), ["Biliri", "Potiskum", "Giwa", "Kumo"]
 
 # 1. Get the lists
 all_comms, all_mkts = get_dynamic_filters()
 
-# 2. Get the selections
+# 2. Sidebar Selections
 commodity_raw = st.sidebar.selectbox("Select Commodity", all_comms)
-market_options = ["All Markets"] + [m for m in all_mkts if m]
+market_options = ["All Markets"] + all_mkts
 market = st.sidebar.selectbox("Select Market", market_options)
 month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
-# 3. Define the key variables used in subheaders and logic
+# 3. Define the key variables (Moved here to prevent Traceback Error)
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
@@ -119,8 +123,8 @@ try:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
             
-            # --- LOCAL OUTLIER FILTERING ---
-            # Ensures 95/100 doesn't mess up your KPIs until the DB is cleaned
+            # --- LOCAL OUTLIER PROTECTION ---
+            # Ignores prices below 150 for Soya Beans to keep the dashboard clean
             df_filtered = df[df[target_col] > 150].copy() if "Soya" in commodity_raw else df.copy()
             
             df['start_time'] = pd.to_datetime(df['start_time'])
@@ -151,7 +155,7 @@ try:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- CALCULATE DYNAMIC METRICS ---
+            # --- DYNAMIC KPI CARDS ---
             avg_val = df_filtered[target_col].mean()
             max_val = df_filtered[target_col].max()
             min_val = df_filtered[target_col].min()
@@ -173,7 +177,7 @@ try:
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- COMMODITY INTELLIGENCE SECTION ---
+            # --- INTELLIGENCE PANEL ---
             info = COMMODITY_INFO.get(commodity_raw, {"desc": "Detailed market data arriving soon.", "markets": "Regional Hubs", "abundance": "Seasonal", "note": "Monitor daily for updates."})
             st.markdown(f"""
                 <div class="advisor-container">
