@@ -6,26 +6,56 @@ import plotly.express as px
 # --- UI CONFIG ---
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
 
-# --- CUSTOM BRANDING (CSS) ---
+# --- CUSTOM BRANDING & LAYOUT (CSS) ---
 st.markdown(f"""
     <style>
-    /* Sidebar Background Color (Agriarche Gold) */
+    /* Force Main Background to Pure White */
+    .stApp {{
+        background-color: #FFFFFF;
+    }}
+    
+    /* Sidebar Background (Agriarche Gold) */
     [data-testid="stSidebar"] {{
         background-color: #F4B266;
     }}
-    /* Sidebar Text Color */
-    [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stMultiSelect label, [data-testid="stSidebar"] p {{
-        color: #1E1E1E !important;
-        font-weight: bold;
-    }}
-    /* Metric Card Styling */
-    [data-testid="stMetricLabel"] {{
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        color: #555555 !important;
-    }}
-    [data-testid="stMetricValue"] {{
+    
+    /* Sidebar Text Styles */
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {{
         color: #2E7D32 !important;
+        font-weight: bold !important;
+    }}
+
+    /* KPI Card Styling - Long, Rectangular, Green Borders */
+    .kpi-container {{
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 15px;
+        width: 100%;
+        margin-top: 40px;
+        margin-bottom: 20px;
+    }}
+    .kpi-card {{
+        background-color: #FFFFFF;
+        border: 1px solid #2E7D32; /* Thin Forest Green Border */
+        border-radius: 4px;
+        padding: 20px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.05);
+    }}
+    .kpi-label {{
+        color: #444444;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }}
+    .kpi-value {{
+        color: #2E7D32;
+        font-size: 30px;
+        font-weight: 800;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -34,10 +64,8 @@ st.markdown(f"""
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
-st.title("🌾 Agriarche Intelligence Hub")
-
 # --- SIDEBAR FILTERS ---
-st.sidebar.image("https://via.placeholder.com/150x50?text=Agriarche+Logo", use_container_width=True) # Replace with your actual logo URL
+st.sidebar.image("https://via.placeholder.com/150x50?text=Agriarche+Logo", use_container_width=True) 
 st.sidebar.header("Market Filters")
 
 commodity = st.sidebar.selectbox("Select Commodity", ["Maize White", "Soya Beans", "Rice Paddy", "Millet", "Sorghum Red", "Cowpea White", "Groundnut Gargaja", "Groundnut Kampala"])
@@ -47,7 +75,10 @@ price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per
 
 db_column = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# --- FETCH & DISPLAY DATA ---
+# --- MAIN CONTENT ---
+st.markdown(f"<h1 style='color: #2E7D32; margin-bottom: 5px;'>Commodity Pricing Intelligence Dashboard</h1>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='color: #2E7D32; font-weight: normal; margin-top: 0;'>Kasuwa Internal Price Trend (per Kg): {commodity} in {month}</h3>", unsafe_allow_html=True)
+
 try:
     analysis_params = {"commodity": commodity, "month": month, "market": market}
     
@@ -61,43 +92,56 @@ try:
         metrics = data_package.get("metrics")
         chart_data = data_package.get("chart_data")
 
-        if metrics and metrics.get('avg', 0) > 0:
-            # --- 1. KPI CARDS ---
-            st.markdown("### 📊 Market Overview")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Average Price", f"₦{metrics['avg']:,.2f}")
-            col2.metric("Highest Price", f"₦{metrics['max']:,.2f}")
-            col3.metric("Lowest Price", f"₦{metrics['min']:,.2f}")
+        if chart_data and metrics:
+            # --- 1. THE HARMONY CHART (TOP) ---
+            df_plot = pd.DataFrame(chart_data)
+            df_plot['start_time'] = pd.to_datetime(df_plot['start_time'])
+            df_plot[db_column] = pd.to_numeric(df_plot[db_column])
 
-            # --- 2. THE HARMONY CHART ---
-            if chart_data:
-                df_plot = pd.DataFrame(chart_data)
-                df_plot['start_time'] = pd.to_datetime(df_plot['start_time'])
-                df_plot[db_column] = pd.to_numeric(df_plot[db_column])
+            # Grouping by day for a smooth trend line
+            df_daily = df_plot.groupby(df_plot['start_time'].dt.day)[db_column].mean().reset_index()
+            df_daily.columns = ['Day', 'Price']
 
-                # AGGREGATION: Averages multiple markets per day for a smooth line
-                df_daily = df_plot.groupby(df_plot['start_time'].dt.date)[db_column].mean().reset_index()
-                df_daily.columns = ['date', 'price']
+            fig = px.line(df_daily, x="Day", y="Price", markers=True, text=df_daily['Price'].round(0))
 
-                fig = px.line(df_daily, x="date", y="price", markers=True, text=df_daily['price'].round(0))
+            # Style the line with Agriarche Gold (#F4B266)
+            fig.update_traces(
+                line_color="#F4B266", 
+                line_width=4,
+                marker=dict(size=10, color="#F4B266", line=dict(width=2, color='white')),
+                textposition="top center"
+            )
 
-                fig.update_traces(
-                    line_color="#2E7D32", # Agriarche Forest Green
-                    line_width=4,
-                    marker=dict(size=10, color="#F4B266", line=dict(width=2, color='white')), # Agriarche Gold markers
-                    textposition="top center"
-                )
+            # Bold Axes and white background
+            fig.update_layout(
+                plot_bgcolor="white",
+                xaxis=dict(showline=True, linewidth=4, linecolor='black', title="<b>Day of Month</b>", gridcolor='#F0F0F0'),
+                yaxis=dict(showline=True, linewidth=4, linecolor='black', title=f"<b>{price_choice} (₦)</b>", gridcolor='#F0F0F0'),
+                height=500,
+                margin=dict(t=30, b=30, l=50, r=50)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
 
-                fig.update_layout(
-                    plot_bgcolor="white",
-                    xaxis=dict(showline=True, linewidth=3, linecolor='black', title="<b>Date</b>"),
-                    yaxis=dict(showline=True, linewidth=3, linecolor='black', title=f"<b>{price_choice} (₦)</b>", gridcolor='#EEEEEE'),
-                    height=500,
-                    margin=dict(t=20)
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
+            # --- 2. THE KPI CARDS (BOTTOM) ---
+            st.markdown(f"""
+                <div class="kpi-container">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Avg Kasuwa internal price</div>
+                        <div class="kpi-value">₦{metrics['avg']:,.0f}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Highest Kasuwa internal price</div>
+                        <div class="kpi-value">₦{metrics['max']:,.0f}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Lowest Kasuwa internal price</div>
+                        <div class="kpi-value">₦{metrics['min']:,.0f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
+            # --- 3. MARKET INTELLIGENCE ---
             if intel_data.get("info"):
                 st.info(f"**Market Intelligence:** {intel_data['info'].get('desc')}")
         else:
