@@ -9,20 +9,19 @@ ACCENT_COLOR = "#F4B266"
 BG_COLOR = "#F5F7FA"
 
 COMMODITY_INFO = {
-    "Soybeans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
-    "Cowpea Brown": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
-    "Cowpea White": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
-    "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
-    "Maize White": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
-    "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
-    "Rice processed": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
-    "Sorghum Red": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
-    "Millet": {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
-    "Groundnut gargaja": {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty."},
-    "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
+    "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors.", "img": "https://img.freepik.com/free-photo/soybean-seeds-soya-bean-background_1150-43011.jpg"},
+    "Cowpea Brown": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage.", "img": "https://img.freepik.com/free-photo/dried-brown-beans_1150-18451.jpg"},
+    "Cowpea White": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices.", "img": "https://img.freepik.com/free-photo/top-view-white-beans-surface_23-2148563428.jpg"},
+    "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium.", "img": "https://img.freepik.com/free-photo/brown-beans-texture-background_1150-42999.jpg"},
+    "Maize White": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends.", "img": "https://img.freepik.com/free-photo/corn-seeds-background_1150-9516.jpg"},
+    "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing.", "img": "https://img.freepik.com/free-photo/paddy-rice-seeds_1150-35756.jpg"},
+    "Rice processed": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs.", "img": "https://img.freepik.com/free-photo/white-long-rice-background_1150-35751.jpg"},
+    "Sorghum Red": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize.", "img": "https://img.freepik.com/free-photo/red-sorghum-seeds_1150-43005.jpg"},
+    "Millet": {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season.", "img": "https://img.freepik.com/free-photo/millet-seeds-background_1150-43008.jpg"},
+    "Groundnut gargaja": {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty.", "img": "https://img.freepik.com/free-photo/peanuts-groundnuts-shell_1150-42991.jpg"},
+    "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja.", "img": "https://img.freepik.com/free-photo/peanuts-seeds-background_1150-42994.jpg"}
 }
 
-# Helper to flip names: "Maize White" -> "White Maize"
 def format_commodity_name(name):
     parts = name.split()
     colors = ["white", "brown", "red", "yellow", "black"]
@@ -38,13 +37,22 @@ st.markdown(f"""
         header {{ visibility: hidden; }}
         .stApp {{ background-color: {BG_COLOR}; }}
         section[data-testid="stSidebar"] {{ background-color: {ACCENT_COLOR} !important; }}
-        h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; font-family: 'Arial Black'; }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
+        }}
+        section[data-testid="stSidebar"] .stMarkdown p, 
+        section[data-testid="stSidebar"] label {{
+            color: #000000 !important;
+            font-weight: bold !important;
+        }}
+        h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
         .advisor-container {{
             background-color: #FFFFFF; padding: 20px; border-radius: 15px;
             border-left: 8px solid {ACCENT_COLOR}; margin-bottom: 25px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }}
-        .metric-container {{ display: flex; justify-content: space-between; gap: 15px; }}
+        .metric-container {{ display: flex; justify-content: space-between; gap: 15px; margin-top: 30px; }}
         .metric-card {{
             background-color: white; padding: 20px; border-radius: 15px;
             border-left: 8px solid {PRIMARY_COLOR}; box-shadow: 2px 4px 10px rgba(0,0,0,0.05); width: 100%;
@@ -54,25 +62,30 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DYNAMIC SIDEBAR FILTERS ---
+# --- 3. DYNAMIC SIDEBAR DATA FETCHING ---
 st.sidebar.title("Market Filters")
 
-# Fetching the full list of commodities and markets from the API
-try:
-    init_res = requests.get("https://agriarche-backend.onrender.com/analysis", headers={"access_token": "Agriarche_Internal_Key_2026"})
-    if init_res.status_code == 200:
-        db_data = pd.DataFrame(init_res.json().get("chart_data", []))
-        all_commodities = sorted(db_data['commodity'].unique().tolist())
-        all_markets = ["All Markets"] + sorted(db_data['market'].unique().tolist())
-    else:
-        all_commodities = list(COMMODITY_INFO.keys())
-        all_markets = ["All Markets", "Biliri", "Dawanau", "Potiskum", "Giwa"]
-except:
-    all_commodities = list(COMMODITY_INFO.keys())
-    all_markets = ["All Markets"]
+@st.cache_data(ttl=300)
+def get_sidebar_options():
+    try:
+        # Fetches base data to identify all existing commodities and markets
+        res = requests.get("https://agriarche-backend.onrender.com/analysis", 
+                           headers={"access_token": "Agriarche_Internal_Key_2026"})
+        if res.status_code == 200:
+            df = pd.DataFrame(res.json().get("chart_data", []))
+            # Extract unique values directly from your database columns
+            comms = sorted(df['commodity'].unique().tolist())
+            mkts = sorted(df['market'].unique().tolist())
+            return comms, mkts
+    except:
+        pass
+    # Fallback lists if the API is unreachable
+    return list(COMMODITY_INFO.keys()), ["Biliri", "Dawanau", "Potiskum", "Giwa"]
+
+all_commodities, all_markets = get_sidebar_options()
 
 commodity_raw = st.sidebar.selectbox("Select Commodity", all_commodities)
-market = st.sidebar.selectbox("Select Market", all_markets)
+market = st.sidebar.selectbox("Select Market", ["All Markets"] + all_markets)
 month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
@@ -81,7 +94,7 @@ display_name = format_commodity_name(commodity_raw)
 
 # --- 4. MAIN CONTENT ---
 st.title("Commodity Pricing Intelligence Dashboard")
-st.subheader(f"{display_name} Pricing Trend in {month}")
+st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month}")
 
 try:
     response = requests.get(f"https://agriarche-backend.onrender.com/analysis", 
@@ -96,27 +109,44 @@ try:
         if chart_data:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
-            df['day'] = pd.to_datetime(df['start_time']).dt.day
-            dfc_grouped = df.groupby('day')[target_col].mean().reset_index()
+            df['start_time'] = pd.to_datetime(df['start_time'])
+            df['day'] = df['start_time'].dt.day
+            df['year'] = df['start_time'].dt.year.astype(str)
+            
+            dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            # Chart Logic
-            fig = px.line(dfc_grouped, x="day", y=target_col, markers=True,
-                          text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"))
-            fig.update_traces(line_color=ACCENT_COLOR, line_width=4, textposition="top center")
-            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(color="black", family="Arial Black"))
+            # --- TREND CHART ---
+            fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
+                          text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
+                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
+                          labels={"day": "Day of Month", target_col: f"{price_choice} (₦)"})
+            
+            fig.update_traces(textposition="top center")
+            fig.update_layout(
+                plot_bgcolor="white", paper_bgcolor="white", 
+                font=dict(color="black", family="Arial Black"),
+                xaxis=dict(showline=True, linewidth=3, linecolor="black", gridcolor="#eeeeee"),
+                yaxis=dict(showline=True, linewidth=3, linecolor="black", gridcolor="#eeeeee")
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- INSIGHTS ---
-            info = COMMODITY_INFO.get(commodity_raw, {"desc": "Data available in market reports.", "markets": "Local Hubs", "abundance": "Seasonal", "note": "Check back for updates."})
-            st.markdown(f"""
-                <div class="advisor-container">
-                    <h4 style="margin-top:0; color:{PRIMARY_COLOR};">Market Insights: {display_name}</h4>
-                    <p><b>Description:</b> {info['desc']}</p>
-                    <p><b>Primary Markets:</b> {info['markets']}</p>
-                    <p><b>Peak Abundance:</b> {info['abundance']}</p>
-                    <p style="color: #666; font-style: italic; border-top: 1px solid #eee; padding-top:10px;"><b>Note:</b> {info['note']}</p>
-                </div>
-            """, unsafe_allow_html=True)
+            # --- INTELLIGENCE SECTION ---
+            info = COMMODITY_INFO.get(commodity_raw, {"desc": "Detailed market data arriving soon.", "markets": "Regional Hubs", "abundance": "Seasonal", "note": "Monitor daily for updates.", "img": ""})
+            
+            col_img, col_txt = st.columns([1, 3])
+            with st.container():
+                st.markdown(f'<div class="advisor-container">', unsafe_allow_html=True)
+                with col_img:
+                    if info['img']: st.image(info['img'], use_container_width=True)
+                with col_txt:
+                    st.markdown(f"""
+                        <h4 style="margin-top:0; color:{PRIMARY_COLOR};">{display_name} Market Intelligence</h4>
+                        <p><b>Description:</b> {info['desc']}</p>
+                        <p><b>Primary Markets:</b> {info['markets']}</p>
+                        <p><b>Peak Abundance:</b> {info['abundance']}</p>
+                        <p style="color: #666; font-style: italic; border-top: 1px solid #eee; padding-top:10px;"><b>Note:</b> {info['note']}</p>
+                    """, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # --- KPI CARDS ---
             st.markdown(f"""
@@ -126,5 +156,7 @@ try:
                     <div class="metric-card"><div class="metric-label">Min Price</div><div class="metric-value">₦{metrics['min']:,.0f}</div></div>
                 </div>
             """, unsafe_allow_html=True)
+        else:
+            st.warning(f"No price data found for {display_name} in {market} during {month}.")
 except Exception as e:
     st.error(f"UI Error: {e}")
