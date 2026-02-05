@@ -43,21 +43,10 @@ st.markdown(f"""
             border-left: 8px solid {PRIMARY_COLOR}; /* Stronger left accent */
             box-shadow: 2px 4px 10px rgba(0,0,0,0.05);
             width: 100%;
-            text-align: left; /* Left aligned labels per professional dashboards */
+            text-align: left;
         }}
         .metric-label {{ font-size: 14px; color: #555; font-weight: bold; margin-bottom: 5px; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
-
-        /* Strategy Cards */
-        .strategy-card {{
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            color: white;
-            margin-bottom: 20px;
-        }}
-        .best-buy {{ background-color: #2E7D32; border-bottom: 5px solid #1B5E20; }}
-        .worst-buy {{ background-color: #C62828; border-bottom: 5px solid #8E0000; }}
 
         /* AI Advisor Styling */
         .advisor-container {{
@@ -97,20 +86,33 @@ try:
         metrics = data.get("metrics")
         chart_data = data.get("chart_data")
 
-        if chart_data:
-            # --- THE CHART (TOP) ---
+        if chart_data and metrics:
+            # --- DATA CLEANING & CONVERSION ---
             df = pd.DataFrame(chart_data)
+            
+            # This fixes the 'dtype->object' error by forcing prices to numbers
+            df[db_column] = pd.to_numeric(df[db_column], errors='coerce')
+            df = df.dropna(subset=[db_column])
+            
             df['start_time'] = pd.to_datetime(df['start_time'])
+            
+            # --- THE CHART (TOP) ---
             df_daily = df.groupby(df['start_time'].dt.day)[db_column].mean().reset_index()
             df_daily.columns = ['Day', 'Price']
 
             fig = px.line(df_daily, x="Day", y="Price", markers=True, text=df_daily['Price'].round(0))
-            fig.update_traces(line_color=ACCENT_COLOR, line_width=4, marker=dict(size=10, color=ACCENT_COLOR, line=dict(width=2, color='white')))
+            fig.update_traces(
+                line_color=ACCENT_COLOR, 
+                line_width=4, 
+                marker=dict(size=10, color=ACCENT_COLOR, line=dict(width=2, color='white')),
+                textposition="top center"
+            )
             fig.update_layout(
                 plot_bgcolor="white",
                 xaxis=dict(showline=True, linewidth=4, linecolor='black', title="<b>Day of Month</b>"),
                 yaxis=dict(showline=True, linewidth=4, linecolor='black', title=f"<b>{price_choice} (₦)</b>"),
-                height=450
+                height=450,
+                margin=dict(t=20, b=20)
             )
             st.plotly_chart(fig, use_container_width=True)
 
