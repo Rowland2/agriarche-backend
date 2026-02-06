@@ -3,11 +3,24 @@ import requests
 import pandas as pd
 import plotly.express as px
 import time
+from datetime import datetime
+from io import BytesIO
 
-# --- 1. BRANDING & DATA ---
+# Import for PDF Generation
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import Flowable
+
+# =====================================================
+# 1. BRANDING & DATA
+# =====================================================
 PRIMARY_COLOR = "#1F7A3F" 
 ACCENT_COLOR = "#F4B266"  
-BG_COLOR = "#F5F7FA"      
+BG_COLOR = "#F5F7FA"
+LOGO_PATH = "assets/logo.png"  # Optional: add your logo
 
 COMMODITY_INFO = {
     "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
@@ -35,7 +48,9 @@ def format_commodity_name(name):
 
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
 
-# --- 2. CSS ---
+# =====================================================
+# 2. CSS STYLING
+# =====================================================
 st.markdown(f"""
     <style>
         header {{ visibility: hidden; }}
@@ -43,31 +58,155 @@ st.markdown(f"""
         section[data-testid="stSidebar"] {{ background-color: {ACCENT_COLOR} !important; }}
         section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; color: #000000 !important; }}
         h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
-        .advisor-container {{ background-color: #FFFFFF; padding: 20px; border-radius: 10px; border-left: 5px solid {ACCENT_COLOR}; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
-        .metric-container {{ display: flex; justify-content: space-between; gap: 15px; margin-top: 30px; }}
-        .metric-card {{ background-color: white; padding: 20px; border-radius: 15px; border-left: 8px solid {PRIMARY_COLOR}; box-shadow: 2px 4px 10px rgba(0,0,0,0.05); width: 100%; }}
+        
+        /* KPI Card Styling */
+        .metric-container {{
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 30px;
+        }}
+        .metric-card {{
+            background-color: white;
+            padding: 20px;
+            border-radius: 15px;
+            border-left: 8px solid {PRIMARY_COLOR};
+            box-shadow: 2px 4px 10px rgba(0,0,0,0.05);
+            width: 100%;
+        }}
         .metric-label {{ font-size: 14px; color: #555; font-weight: bold; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
+        
+        /* Strategy Cards */
+        .strategy-card {{
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+        }}
+        .best-buy {{ background-color: #2E7D32; border-bottom: 5px solid #1B5E20; }}
+        .worst-buy {{ background-color: #C62828; border-bottom: 5px solid #8E0000; }}
+        
+        /* Advisor Container */
+        .advisor-container {{
+            background-color: #FFFFFF;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid {ACCENT_COLOR};
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. API CONFIG ---
+# =====================================================
+# 3. PDF GENERATOR FUNCTION
+# =====================================================
+class HorizontalLine(Flowable):
+    def __init__(self, width, height, color):
+        Flowable.__init__(self)
+        self.width = width
+        self.height = height
+        self.color = color
+    def draw(self):
+        self.canv.setStrokeColor(self.color)
+        self.canv.line(0, 0, self.width, 0)
+
+def generate_pdf_report(month_name, report_df):
+    """Generate a comprehensive PDF report for a given month"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    
+    # Custom Styles
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], 
+                                 textColor=colors.HexColor(PRIMARY_COLOR), spaceAfter=12)
+    market_header_style = ParagraphStyle('MarketHeader', parent=styles['Heading2'], 
+                                        textColor=colors.HexColor(PRIMARY_COLOR), 
+                                        spaceBefore=15, spaceAfter=5)
+    sub_style = ParagraphStyle('SubStyle', parent=styles['Heading3'], 
+                               textColor=colors.black, spaceBefore=8)
+    body_style = styles['Normal']
+    
+    elements = []
+    
+    # --- REPORT HEADER ---
+    elements.append(Paragraph(f"Agriarche Market Intelligence Report", title_style))
+    elements.append(Paragraph(f"Analysis Month: {month_name}", styles['Heading3']))
+    elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}", body_style))
+    elements.append(Spacer(1, 20))
+
+    # --- CONTENT GENERATION (GROUPED BY MARKET) ---
+    summary_table_data = [["Market", "Commodity", "Avg Price/Kg (₦)", "High/Kg (₦)", "Low/Kg (₦)"]]
+    unique_markets = sorted(report_df["market"].unique())
+
+    for market in unique_markets:
+        market_df = report_df[report_df["market"] == market]
+        elements.append(Paragraph(f"Location: {market}", market_header_style))
+        elements.append(HorizontalLine(6.5*inch, 1, colors.grey))
+        
+        for comm in sorted(market_df["commodity"].unique()):
+            comm_df = market_df[market_df["commodity"] == comm]
+            
+            avg_p = comm_df["price_per_kg"].mean()
+            high_p = comm_df["price_per_kg"].max()
+            low_p = comm_df["price_per_kg"].min()
+            
+            elements.append(Paragraph(f"<b>{comm}</b>", sub_style))
+            text = (f"In {market}, the average price for {comm} was <b>₦{avg_p:,.2f}/Kg</b>. "
+                    f"Prices peaked at ₦{high_p:,.2f}/Kg with a floor of ₦{low_p:,.2f}/Kg.")
+            elements.append(Paragraph(text, body_style))
+            
+            summary_table_data.append([market, comm, f"{avg_p:,.2f}", f"{high_p:,.2f}", f"{low_p:,.2f}"])
+        
+        elements.append(Spacer(1, 10))
+
+    # --- PRICE SUMMARY TABLE ---
+    elements.append(Spacer(1, 15))
+    elements.append(Paragraph("Comprehensive Market Summary Table", market_header_style))
+    elements.append(Spacer(1, 10))
+
+    t = Table(summary_table_data, colWidths=[110, 140, 90, 80, 80], repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(ACCENT_COLOR)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey])
+    ]))
+    elements.append(t)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+# =====================================================
+# 4. API CONFIG
+# =====================================================
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
-# --- 4. SIDEBAR ---
+# =====================================================
+# 5. SIDEBAR
+# =====================================================
 st.sidebar.title("Market Filters")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
-month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
+                                                   "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# --- 5. MAIN CONTENT (CHART & KPIs) ---
+# =====================================================
+# 6. MAIN CONTENT (CHART & KPIs)
+# =====================================================
 st.title("Commodity Pricing Intelligence Dashboard")
-st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month_sel}")
+st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
 
 # A. Chart Fetch (Filtered)
 try:
@@ -110,27 +249,28 @@ try:
 except Exception as e:
     st.error(f"Chart Error: {e}")
 
-# --- B. THE ARCHIVE TABLE (UNFILTERED) ---
+# =====================================================
+# 7. STANDALONE DATA ARCHIVE TABLE
+# =====================================================
 st.markdown("---")
-st.subheader("📚 Kasuwa internal price Data Archive")
-st.write("Search through all Kasuwa internal price records regardless of sidebar filters.")
+st.subheader("📚 Complete Price Data Archive")
+st.write("Search through all price records regardless of sidebar filters.")
 
 try:
-    # Separate call for the Archive to ignore sidebar filters
-    full_res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
+    full_res = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
     if full_res.status_code == 200:
-        all_raw_data = full_res.json().get("chart_data", [])
+        all_raw_data = full_res.json()
         
         if all_raw_data:
             df_hist = pd.DataFrame(all_raw_data)
-            hist_search = st.text_input("🔍 Search Kasuwa internal price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
+            hist_search = st.text_input("🔍 Search Price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
             
             # Formatting and cleaning columns
             df_hist["Date"] = pd.to_datetime(df_hist["start_time"]).dt.strftime('%Y-%m-%d')
             df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
             df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
 
-            # Selecting ONLY the 5 specific columns: Date, Commodity, Market, Price per Kg, Price per Bag
+            # Selecting columns to display
             display_cols = ["Date", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)"]
             hist_display = df_hist[display_cols].copy()
             
@@ -155,3 +295,163 @@ try:
             st.info("No records available in the database archive.")
 except Exception as e:
     st.error(f"Archive Table Error: {e}")
+
+# =====================================================
+# 8. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
+# =====================================================
+st.markdown("---")
+st.header(f"📋 Monthly Intelligence Report: {month_sel}")
+
+# Fetch month-specific data for PDF and analysis
+try:
+    month_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+    if month_response.status_code == 200:
+        all_data = pd.DataFrame(month_response.json())
+        all_data['start_time'] = pd.to_datetime(all_data['start_time'])
+        all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
+        all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
+        
+        # Filter for selected month
+        report_data = all_data[all_data['month_name'] == month_sel].copy()
+        
+        if not report_data.empty:
+            # PDF Download Button
+            pdf_buffer = generate_pdf_report(month_sel, report_data)
+            st.download_button(
+                label="📥 Download Monthly Intelligence Report (PDF)",
+                data=pdf_buffer,
+                file_name=f"Agriarche_Market_Report_{month_sel}.pdf",
+                mime="application/pdf"
+            )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # STRATEGIC SOURCING CARDS
+            strategy_df = report_data[report_data["commodity"] == commodity_raw].copy()
+            
+            if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
+                m_ranks = strategy_df.groupby("market")["price_per_kg"].mean().sort_values()
+                best_m = m_ranks.index[0]
+                best_p = m_ranks.iloc[0]
+                worst_m = m_ranks.index[-1]
+                worst_p = m_ranks.iloc[-1]
+                
+                st.subheader(f"🎯 Strategic Sourcing: {commodity_raw}")
+                scol1, scol2 = st.columns(2)
+                with scol1:
+                    st.markdown(f"""
+                        <div class="strategy-card best-buy">
+                            <div style="font-size: 14px; opacity: 0.9;">CHEAPEST MARKET (BEST TO BUY)</div>
+                            <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{best_m}</div>
+                            <div style="font-size: 20px;">₦{best_p:,.2f} <small>(Avg/Kg)</small></div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with scol2:
+                    st.markdown(f"""
+                        <div class="strategy-card worst-buy">
+                            <div style="font-size: 14px; opacity: 0.9;">HIGHEST PRICE MARKET (AVOID)</div>
+                            <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{worst_m}</div>
+                            <div style="font-size: 20px;">₦{worst_p:,.2f} <small>(Avg/Kg)</small></div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # AI MARKET ADVISOR
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader("🤖 AI Market Advisor")
+                
+                volatility = ((max_val - min_val) / min_val) * 100 if min_val > 0 else 0
+                annual_avg = all_data[all_data["commodity"] == commodity_raw]["price_per_kg"].mean()
+                
+                if volatility > 20:
+                    advice = f"🚨 **High Volatility Warning:** {commodity_raw} prices are fluctuating significantly ({volatility:.1f}%). Avoid spot-buying; look for long-term fixed contracts in {best_m}."
+                    bg_adv = "#FFF4E5"
+                elif avg_val < annual_avg:
+                    advice = f"✅ **Optimal Buy Window:** Prices for {commodity_raw} in {month_sel} are {((annual_avg-avg_val)/annual_avg)*100:.1f}% below the annual average. Strong window for inventory stocking."
+                    bg_adv = "#E8F5E9"
+                else:
+                    advice = f"ℹ️ **Market Stability:** {commodity_raw} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best margins."
+                    bg_adv = "#E3F2FD"
+
+                st.markdown(f"""
+                    <div class="advisor-container" style="background-color: {bg_adv};">
+                        <p style="color: #1F2937; font-size: 16px; margin: 0; line-height: 1.6;">
+                            <b>Strategic Insight for {commodity_raw}:</b><br>{advice}
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info(f"Insufficient market data for strategic sourcing analysis of {commodity_raw} in {month_sel}.")
+        else:
+            st.info(f"No data available for {month_sel}.")
+except Exception as e:
+    st.error(f"Monthly Report Error: {e}")
+
+# =====================================================
+# 9. MARKET & PRICE COMPARISON
+# =====================================================
+st.markdown("---")
+st.header("⚖️ Market & Price Comparison")
+
+try:
+    # Get all data for comparison
+    all_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+    if all_response.status_code == 200:
+        all_df = pd.DataFrame(all_response.json())
+        all_df['price_per_kg'] = pd.to_numeric(all_df['price_per_kg'], errors='coerce')
+        
+        col_comp1, col_comp2 = st.columns(2)
+        
+        with col_comp1:
+            all_commodities = sorted(all_df["commodity"].unique())
+            selected_comp_comm = st.selectbox("Select Commodity for Comparison", all_commodities)
+
+        with col_comp2:
+            markets_for_comm = sorted(all_df[all_df["commodity"] == selected_comp_comm]["market"].unique())
+            if len(markets_for_comm) >= 2:
+                market1 = st.selectbox("Select First Market", markets_for_comm, key="market1")
+                market2 = st.selectbox("Select Second Market", [m for m in markets_for_comm if m != market1], key="market2")
+                
+                # Calculate averages
+                price1 = all_df[(all_df["commodity"] == selected_comp_comm) & 
+                               (all_df["market"] == market1)]["price_per_kg"].mean()
+                price2 = all_df[(all_df["commodity"] == selected_comp_comm) & 
+                               (all_df["market"] == market2)]["price_per_kg"].mean()
+                
+                diff = price2 - price1
+                perc_change = (diff / price1) * 100 if price1 != 0 else 0
+                
+                m1, m2 = st.columns(2)
+                m1.metric(f"{market1}", f"₦{price1:,.2f}")
+                m2.metric(f"{market2}", f"₦{price2:,.2f}", f"{perc_change:+.1f}%")
+                
+                # Comparison Chart
+                comp_chart_df = pd.DataFrame({
+                    "Market": [market1, market2],
+                    "Price per KG": [price1, price2]
+                })
+                
+                fig_comp = px.bar(
+                    comp_chart_df, 
+                    x="Market", 
+                    y="Price per KG", 
+                    color="Market", 
+                    color_discrete_sequence=[ACCENT_COLOR, PRIMARY_COLOR], 
+                    text_auto='.2f'
+                )
+                fig_comp.update_layout(showlegend=False)
+                st.plotly_chart(fig_comp, use_container_width=True)
+            else:
+                st.warning(f"Need at least 2 markets with data for {selected_comp_comm} to compare.")
+except Exception as e:
+    st.error(f"Comparison Error: {e}")
+
+# =====================================================
+# 10. FOOTER
+# =====================================================
+st.markdown("---")
+st.markdown("""
+    <div style='text-align: center; color: #666; padding: 20px;'>
+        <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
+        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
+    </div>
+""", unsafe_allow_html=True)
