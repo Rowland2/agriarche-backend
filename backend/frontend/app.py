@@ -41,8 +41,8 @@ HARDCODED_MARKETS = ["Biliri", "Dawanau", "Giwa", "Kumo", "Lashe Money", "Pambeg
 
 def format_commodity_name(name):
     parts = name.split()
-    colors = ["white", "brown", "red", "yellow", "black"]
-    if len(parts) > 1 and parts[-1].lower() in colors:
+    colors_list = ["white", "brown", "red", "yellow", "black"]
+    if len(parts) > 1 and parts[-1].lower() in colors_list:
         return f"{parts[-1].capitalize()} {' '.join(parts[:-1])}"
     return name.capitalize()
 
@@ -229,8 +229,25 @@ try:
 
             fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
                           text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
-                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"})
-            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(family="Arial Black"))
+                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
+                          labels={"day": "Day of Month", target_col: "Price (₦)"})
+            
+            fig.update_traces(textposition="top center")
+            fig.update_layout(
+                plot_bgcolor="white", 
+                paper_bgcolor="white", 
+                font=dict(color="black", family="Arial Black"),
+                xaxis=dict(
+                    title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
+                    tickfont=dict(size=14, color="black", family="Arial Black"), 
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                ),
+                yaxis=dict(
+                    title=dict(text=f"<b>Price (₦)</b>", font=dict(size=16, color="black")),
+                    tickfont=dict(size=14, color="black", family="Arial Black"), 
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                )
+            )
             st.plotly_chart(fig, use_container_width=True)
 
             avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
@@ -243,7 +260,17 @@ try:
             """, unsafe_allow_html=True)
             
             info = COMMODITY_INFO.get(commodity_raw, {"desc": "", "markets": "", "abundance": "", "note": ""})
-            st.markdown(f"""<div class="advisor-container"><b>💡 {display_name} Intelligence:</b><br>{info['desc']} Markets: {info['markets']}.</div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="advisor-container" style="border-left: 5px solid {ACCENT_COLOR};">
+                    <p style="color: #1F2937; font-size: 17px; margin: 0; line-height: 1.8;">
+                        <b style="font-size: 18px;">🌾 {display_name} Intelligence:</b><br><br>
+                        {info['desc']}<br><br>
+                        <b>Primary Markets:</b> {info['markets']}<br>
+                        <b>Peak Abundance:</b> {info['abundance']}<br><br>
+                        <i style="color: #666;">💡 Market Note: {info['note']}</i>
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
             st.warning(f"No chart data found for {display_name} in {month_sel}.")
 except Exception as e:
@@ -310,6 +337,7 @@ try:
         all_data['start_time'] = pd.to_datetime(all_data['start_time'])
         all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
         all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
+        all_data['price_per_bag'] = pd.to_numeric(all_data['price_per_bag'], errors='coerce')
         
         # Filter for selected month
         report_data = all_data[all_data['month_name'] == month_sel].copy()
@@ -326,15 +354,20 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # STRATEGIC SOURCING CARDS
+            # STRATEGIC SOURCING CARDS (responds to Price per Kg/Bag toggle)
             strategy_df = report_data[report_data["commodity"] == commodity_raw].copy()
             
             if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
-                m_ranks = strategy_df.groupby("market")["price_per_kg"].mean().sort_values()
+                # Use the same target_col as selected in sidebar (price_per_kg or price_per_bag)
+                strategy_df[target_col] = pd.to_numeric(strategy_df[target_col], errors='coerce')
+                m_ranks = strategy_df.groupby("market")[target_col].mean().sort_values()
                 best_m = m_ranks.index[0]
                 best_p = m_ranks.iloc[0]
                 worst_m = m_ranks.index[-1]
                 worst_p = m_ranks.iloc[-1]
+                
+                # Display unit based on selection
+                unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
                 
                 st.subheader(f"🎯 Strategic Sourcing: {commodity_raw}")
                 scol1, scol2 = st.columns(2)
@@ -343,7 +376,7 @@ try:
                         <div class="strategy-card best-buy">
                             <div style="font-size: 14px; opacity: 0.9;">CHEAPEST MARKET (BEST TO BUY)</div>
                             <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{best_m}</div>
-                            <div style="font-size: 20px;">₦{best_p:,.2f} <small>(Avg/Kg)</small></div>
+                            <div style="font-size: 20px;">₦{best_p:,.2f} <small>({unit_label})</small></div>
                         </div>
                     """, unsafe_allow_html=True)
                 with scol2:
@@ -351,7 +384,7 @@ try:
                         <div class="strategy-card worst-buy">
                             <div style="font-size: 14px; opacity: 0.9;">HIGHEST PRICE MARKET (AVOID)</div>
                             <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{worst_m}</div>
-                            <div style="font-size: 20px;">₦{worst_p:,.2f} <small>(Avg/Kg)</small></div>
+                            <div style="font-size: 20px;">₦{worst_p:,.2f} <small>({unit_label})</small></div>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -387,66 +420,7 @@ except Exception as e:
     st.error(f"Monthly Report Error: {e}")
 
 # =====================================================
-# 9. MARKET & PRICE COMPARISON
-# =====================================================
-st.markdown("---")
-st.header("⚖️ Market & Price Comparison")
-
-try:
-    # Get all data for comparison
-    all_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
-    if all_response.status_code == 200:
-        all_df = pd.DataFrame(all_response.json())
-        all_df['price_per_kg'] = pd.to_numeric(all_df['price_per_kg'], errors='coerce')
-        
-        col_comp1, col_comp2 = st.columns(2)
-        
-        with col_comp1:
-            all_commodities = sorted(all_df["commodity"].unique())
-            selected_comp_comm = st.selectbox("Select Commodity for Comparison", all_commodities)
-
-        with col_comp2:
-            markets_for_comm = sorted(all_df[all_df["commodity"] == selected_comp_comm]["market"].unique())
-            if len(markets_for_comm) >= 2:
-                market1 = st.selectbox("Select First Market", markets_for_comm, key="market1")
-                market2 = st.selectbox("Select Second Market", [m for m in markets_for_comm if m != market1], key="market2")
-                
-                # Calculate averages
-                price1 = all_df[(all_df["commodity"] == selected_comp_comm) & 
-                               (all_df["market"] == market1)]["price_per_kg"].mean()
-                price2 = all_df[(all_df["commodity"] == selected_comp_comm) & 
-                               (all_df["market"] == market2)]["price_per_kg"].mean()
-                
-                diff = price2 - price1
-                perc_change = (diff / price1) * 100 if price1 != 0 else 0
-                
-                m1, m2 = st.columns(2)
-                m1.metric(f"{market1}", f"₦{price1:,.2f}")
-                m2.metric(f"{market2}", f"₦{price2:,.2f}", f"{perc_change:+.1f}%")
-                
-                # Comparison Chart
-                comp_chart_df = pd.DataFrame({
-                    "Market": [market1, market2],
-                    "Price per KG": [price1, price2]
-                })
-                
-                fig_comp = px.bar(
-                    comp_chart_df, 
-                    x="Market", 
-                    y="Price per KG", 
-                    color="Market", 
-                    color_discrete_sequence=[ACCENT_COLOR, PRIMARY_COLOR], 
-                    text_auto='.2f'
-                )
-                fig_comp.update_layout(showlegend=False)
-                st.plotly_chart(fig_comp, use_container_width=True)
-            else:
-                st.warning(f"Need at least 2 markets with data for {selected_comp_comm} to compare.")
-except Exception as e:
-    st.error(f"Comparison Error: {e}")
-
-# =====================================================
-# 10. FOOTER
+# 9. FOOTER
 # =====================================================
 st.markdown("---")
 st.markdown("""
