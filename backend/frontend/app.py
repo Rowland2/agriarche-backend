@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import time
 
-# --- 1. BRANDING & INFO ---
+# --- 1. BRANDING & DATA ---
 PRIMARY_COLOR = "#1F7A3F" 
 ACCENT_COLOR = "#F4B266"  
 BG_COLOR = "#F5F7FA"      
@@ -35,6 +35,7 @@ def format_commodity_name(name):
 
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
 
+# --- 2. CSS ---
 st.markdown(f"""
     <style>
         header {{ visibility: hidden; }}
@@ -50,52 +51,49 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- API CONFIG ---
+# --- 3. API CONFIG ---
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
-# --- SIDEBAR ---
+# --- 4. SIDEBAR ---
 st.sidebar.title("Market Filters")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
-market = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
-month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
+month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# --- MAIN DASHBOARD ---
+# --- 5. MAIN CONTENT (CHART & KPIs) ---
 st.title("Commodity Pricing Intelligence Dashboard")
-st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month}")
+st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month_sel}")
 
+# A. Chart Fetch (Filtered)
 try:
     timestamp = int(time.time())
     response = requests.get(f"{BASE_URL}/analysis", 
-                            params={"commodity": commodity_raw, "month": month, "market": market, "v": timestamp}, 
+                            params={"commodity": commodity_raw, "month": month_sel, "market": market_sel, "v": timestamp}, 
                             headers=HEADERS)
     
     if response.status_code == 200:
         data = response.json()
-        chart_data = data.get("chart_data")
+        chart_data = data.get("chart_data", [])
 
         if chart_data:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
-            
-            # Formatting for KPIs and Charts
             df['start_time'] = pd.to_datetime(df['start_time'])
             df['day'] = df['start_time'].dt.day
             df['year'] = df['start_time'].dt.year.astype(str)
             dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            # Chart Logic
             fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
                           text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
                           color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"})
             fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(family="Arial Black"))
             st.plotly_chart(fig, use_container_width=True)
 
-            # Metric Cards
             avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
             st.markdown(f"""
                 <div class="metric-container">
@@ -104,47 +102,56 @@ try:
                     <div class="metric-card"><div class="metric-label">Low price</div><div class="metric-value">₦{min_val:,.0f}</div></div>
                 </div>
             """, unsafe_allow_html=True)
-
-            # Advisory Container
-            info = COMMODITY_INFO.get(commodity_raw, {"desc": "Data coming soon.", "markets": "Hubs", "abundance": "Seasonal", "note": "Monitor daily."})
-            st.markdown(f"""<div class="advisor-container"><b>💡 {display_name} Intelligence:</b><br>{info['desc']} Markets: {info['markets']}.<br><i>Note: {info['note']}</i></div>""", unsafe_allow_html=True)
-
-            # --- 📚 NEW: DATA ARCHIVE SECTION (As per Screenshot 1153) ---
-            st.markdown("---")
-            st.subheader("📚 Kasuwa internal price Data Archive")
-            st.write("Search through all Kasuwa internal price records regardless of sidebar filters.")
             
+            info = COMMODITY_INFO.get(commodity_raw, {"desc": "", "markets": "", "abundance": "", "note": ""})
+            st.markdown(f"""<div class="advisor-container"><b>💡 {display_name} Intelligence:</b><br>{info['desc']} Markets: {info['markets']}.</div>""", unsafe_allow_html=True)
+        else:
+            st.warning(f"No chart data found for {display_name} in {month_sel}.")
+except Exception as e:
+    st.error(f"Chart Error: {e}")
+
+# --- B. THE ARCHIVE TABLE (UNFILTERED) ---
+st.markdown("---")
+st.subheader("📚 Kasuwa internal price Data Archive")
+st.write("Search through all Kasuwa internal price records regardless of sidebar filters.")
+
+try:
+    # Separate call for the Archive to ignore sidebar filters
+    full_res = requests.get(f"{BASE_URL}/analysis", headers=HEADERS)
+    if full_res.status_code == 200:
+        all_raw_data = full_res.json().get("chart_data", [])
+        
+        if all_raw_data:
+            df_hist = pd.DataFrame(all_raw_data)
             hist_search = st.text_input("🔍 Search Kasuwa internal price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
             
-            # Using the full dataframe for the archive
-            hist_display = df.copy()
+            # Formatting and cleaning columns
+            df_hist["Date"] = pd.to_datetime(df_hist["start_time"]).dt.strftime('%Y-%m-%d')
+            df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
+            df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
+
+            # Selecting ONLY the 5 specific columns: Date, Commodity, Market, Price per Kg, Price per Bag
+            display_cols = ["Date", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)"]
+            hist_display = df_hist[display_cols].copy()
             
-            # Standardizing Column Names to match your Screenshot requirements
-            if "start_time" in hist_display.columns:
-                hist_display["Date"] = pd.to_datetime(hist_display["start_time"]).dt.strftime('%Y-%m-%d')
-            
-            hist_display["Price/KG (₦)"] = hist_display["price_per_kg"] if "price_per_kg" in hist_display.columns else 0
-            hist_display["Total Price (₦)"] = hist_display["price"] if "price" in hist_display.columns else 0
-            
-            # Selecting and Renaming based on Screenshot (1153)
-            display_cols = ["Date", "commodity", "market", "Price/KG (₦)", "Total Price (₦)", "year", "month_name"]
-            hist_display = hist_display[[c for c in display_cols if c in hist_display.columns]]
+            # Renaming for professional look
             hist_display = hist_display.rename(columns={"commodity": "Commodity", "market": "Market"})
 
+            # Apply Search Filter
             if hist_search:
                 mask = hist_display.apply(lambda row: row.astype(str).str.contains(hist_search, case=False).any(), axis=1)
                 hist_display = hist_display[mask]
             
+            # Display sorted by newest date first
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
-                    "Price/KG (₦)": "{:,.2f}",
-                    "Total Price (₦)": "{:,.0f}"
+                    "Price per Kg (₦)": "{:,.2f}",
+                    "Price per Bag (₦)": "{:,.0f}"
                 }),
                 use_container_width=True,
                 hide_index=True
             )
-
         else:
-            st.warning(f"No data found for {display_name} in {month}.")
+            st.info("No records available in the database archive.")
 except Exception as e:
-    st.error(f"UI Error: {e}")
+    st.error(f"Archive Table Error: {e}")
