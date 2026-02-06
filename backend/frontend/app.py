@@ -2,14 +2,13 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
-import time  # For cache busting
+import time
 
-# --- 1. BRANDING CONFIGURATION ---
-PRIMARY_COLOR = "#1F7A3F"  # Forest Green
-ACCENT_COLOR = "#F4B266"   # Agriarche Gold
-BG_COLOR = "#F5F7FA"       # Light Grey Background
+# --- 1. BRANDING & INFO ---
+PRIMARY_COLOR = "#1F7A3F" 
+ACCENT_COLOR = "#F4B266"  
+BG_COLOR = "#F5F7FA"      
 
-# --- COMMODITY INTELLIGENCE DATA (Also used for Hardcoded List) ---
 COMMODITY_INFO = {
     "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
     "Cowpea Brown": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
@@ -24,18 +23,8 @@ COMMODITY_INFO = {
     "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
 }
 
-# --- MANUALLY DEFINED LISTS (Hardcoded from SQL/Excel) ---
 HARDCODED_COMMODITIES = sorted(list(COMMODITY_INFO.keys()))
-HARDCODED_MARKETS = [
-    "Biliri", 
-    "Dawanau", 
-    "Giwa", 
-    "Kumo", 
-    "Lashe Money", 
-    "Pambegua", 
-    "Potiskum", 
-    "Sabo Kasuwa Mubi"
-]
+HARDCODED_MARKETS = ["Biliri", "Dawanau", "Giwa", "Kumo", "Lashe Money", "Pambegua", "Potiskum", "Sabo Kasuwa Mubi"]
 
 def format_commodity_name(name):
     parts = name.split()
@@ -46,67 +35,44 @@ def format_commodity_name(name):
 
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
 
-# --- 2. THE SPECIFIED FORMATTING (CSS) ---
 st.markdown(f"""
     <style>
         header {{ visibility: hidden; }}
         .stApp {{ background-color: {BG_COLOR}; }}
         section[data-testid="stSidebar"] {{ background-color: {ACCENT_COLOR} !important; }}
-        section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{
-            background-color: #FFFFFF !important;
-            color: #000000 !important;
-        }}
-        section[data-testid="stSidebar"] .stMarkdown p, 
-        section[data-testid="stSidebar"] label {{
-            color: #000000 !important;
-            font-weight: bold !important;
-        }}
+        section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; color: #000000 !important; }}
         h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
-        .advisor-container {{
-            background-color: #FFFFFF; padding: 20px; border-radius: 10px;
-            border-left: 5px solid {ACCENT_COLOR}; margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }}
+        .advisor-container {{ background-color: #FFFFFF; padding: 20px; border-radius: 10px; border-left: 5px solid {ACCENT_COLOR}; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
         .metric-container {{ display: flex; justify-content: space-between; gap: 15px; margin-top: 30px; }}
-        .metric-card {{
-            background-color: white; padding: 20px; border-radius: 15px;
-            border-left: 8px solid {PRIMARY_COLOR}; box-shadow: 2px 4px 10px rgba(0,0,0,0.05); width: 100%;
-        }}
+        .metric-card {{ background-color: white; padding: 20px; border-radius: 15px; border-left: 8px solid {PRIMARY_COLOR}; box-shadow: 2px 4px 10px rgba(0,0,0,0.05); width: 100%; }}
         .metric-label {{ font-size: 14px; color: #555; font-weight: bold; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. API CONFIG ---
+# --- API CONFIG ---
 BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
-# --- 4. SIDEBAR ---
+# --- SIDEBAR ---
 st.sidebar.title("Market Filters")
-
-# Using the Hardcoded Lists instead of dynamic extraction
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
-market_options = ["All Markets"] + HARDCODED_MARKETS
-market = st.sidebar.selectbox("Select Market", market_options)
+market = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
-# Key variables
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# --- 5. MAIN CONTENT ---
+# --- MAIN DASHBOARD ---
 st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Kasuwa Internal Price Trend: {display_name} in {month}")
 
 try:
-    # Adding timestamp 'v' to bypass the Render API cache
     timestamp = int(time.time())
-    response = requests.get(
-        f"{BASE_URL}/analysis", 
-        params={"commodity": commodity_raw, "month": month, "market": market, "v": timestamp}, 
-        headers=HEADERS
-    )
+    response = requests.get(f"{BASE_URL}/analysis", 
+                            params={"commodity": commodity_raw, "month": month, "market": market, "v": timestamp}, 
+                            headers=HEADERS)
     
     if response.status_code == 200:
         data = response.json()
@@ -116,73 +82,69 @@ try:
             df = pd.DataFrame(chart_data)
             df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
             
-            # Outlier protection for Soya Beans specifically
-            df_filtered = df[df[target_col] > 150].copy() if "Soya" in commodity_raw else df.copy()
-            
+            # Formatting for KPIs and Charts
             df['start_time'] = pd.to_datetime(df['start_time'])
             df['day'] = df['start_time'].dt.day
             df['year'] = df['start_time'].dt.year.astype(str)
             dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            # --- CHART ---
+            # Chart Logic
             fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
                           text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
-                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
-                          labels={"day": "Day of Month", target_col: f"{price_choice} (₦)"})
-            
-            fig.update_traces(textposition="top center")
-            fig.update_layout(
-                plot_bgcolor="white", paper_bgcolor="white", 
-                font=dict(color="black", family="Arial Black"),
-                xaxis=dict(title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
-                    tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"),
-                yaxis=dict(title=dict(text=f"<b>{price_choice} (₦)</b>", font=dict(size=16, color="black")),
-                    tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee")
-            )
+                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"})
+            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(family="Arial Black"))
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- KPIs ---
-            avg_val = df_filtered[target_col].mean()
-            max_val = df_filtered[target_col].max()
-            min_val = df_filtered[target_col].min()
-
+            # Metric Cards
+            avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
             st.markdown(f"""
                 <div class="metric-container">
-                    <div class="metric-card">
-                        <div class="metric-label">Avg Kasuwa internal price ({price_choice})</div>
-                        <div class="metric-value">₦{avg_val:,.0f}</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Highest Kasuwa internal price ({price_choice})</div>
-                        <div class="metric-value">₦{max_val:,.0f}</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Lowest Kasuwa internal price ({price_choice})</div>
-                        <div class="metric-value">₦{min_val:,.0f}</div>
-                    </div>
+                    <div class="metric-card"><div class="metric-label">Avg price</div><div class="metric-value">₦{avg_val:,.0f}</div></div>
+                    <div class="metric-card"><div class="metric-label">High price</div><div class="metric-value">₦{max_val:,.0f}</div></div>
+                    <div class="metric-card"><div class="metric-label">Low price</div><div class="metric-value">₦{min_val:,.0f}</div></div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- ADVISORY ---
-            info = COMMODITY_INFO.get(commodity_raw, {"desc": "Detailed market data arriving soon.", "markets": "Regional Hubs", "abundance": "Seasonal", "note": "Monitor daily for updates."})
-            st.markdown(f"""
-                <div class="advisor-container">
-                    <p style="font-size: 18px; color: {PRIMARY_COLOR}; margin-bottom: 5px;">
-                        <b>💡 {display_name} Intelligence:</b>
-                    </p>
-                    <p style="margin: 0; color: #333;">
-                        {info['desc']} Primary sourcing markets include <b>{info['markets']}</b>. 
-                        Periods of high abundance: <b>{info['abundance']}</b>.
-                    </p>
-                    <p style="margin-top: 10px; color: #555; font-style: italic;">
-                        <b>Market Note:</b> {info['note']}
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
+            # Advisory Container
+            info = COMMODITY_INFO.get(commodity_raw, {"desc": "Data coming soon.", "markets": "Hubs", "abundance": "Seasonal", "note": "Monitor daily."})
+            st.markdown(f"""<div class="advisor-container"><b>💡 {display_name} Intelligence:</b><br>{info['desc']} Markets: {info['markets']}.<br><i>Note: {info['note']}</i></div>""", unsafe_allow_html=True)
+
+            # --- 📚 NEW: DATA ARCHIVE SECTION (As per Screenshot 1153) ---
+            st.markdown("---")
+            st.subheader("📚 Kasuwa internal price Data Archive")
+            st.write("Search through all Kasuwa internal price records regardless of sidebar filters.")
+            
+            hist_search = st.text_input("🔍 Search Kasuwa internal price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
+            
+            # Using the full dataframe for the archive
+            hist_display = df.copy()
+            
+            # Standardizing Column Names to match your Screenshot requirements
+            if "start_time" in hist_display.columns:
+                hist_display["Date"] = pd.to_datetime(hist_display["start_time"]).dt.strftime('%Y-%m-%d')
+            
+            hist_display["Price/KG (₦)"] = hist_display["price_per_kg"] if "price_per_kg" in hist_display.columns else 0
+            hist_display["Total Price (₦)"] = hist_display["price"] if "price" in hist_display.columns else 0
+            
+            # Selecting and Renaming based on Screenshot (1153)
+            display_cols = ["Date", "commodity", "market", "Price/KG (₦)", "Total Price (₦)", "year", "month_name"]
+            hist_display = hist_display[[c for c in display_cols if c in hist_display.columns]]
+            hist_display = hist_display.rename(columns={"commodity": "Commodity", "market": "Market"})
+
+            if hist_search:
+                mask = hist_display.apply(lambda row: row.astype(str).str.contains(hist_search, case=False).any(), axis=1)
+                hist_display = hist_display[mask]
+            
+            st.dataframe(
+                hist_display.sort_values(by="Date", ascending=False).style.format({
+                    "Price/KG (₦)": "{:,.2f}",
+                    "Total Price (₦)": "{:,.0f}"
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+
         else:
-            st.warning(f"No data found for {display_name} in {month} for the selected market.")
-
+            st.warning(f"No data found for {display_name} in {month}.")
 except Exception as e:
     st.error(f"UI Error: {e}")
