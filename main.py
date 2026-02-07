@@ -18,8 +18,7 @@ engine = create_engine(DATABASE_URL)
 API_KEY = "Agriarche_Internal_Key_2026"
 api_key_header = APIKeyHeader(name="access_token")
 
-# --- MOCK INTELLIGENCE DATA ---
-# This serves the 'info' your Streamlit app is looking for
+# --- CROP INTELLIGENCE DATA ---
 CROP_INTELLIGENCE = {
     "maize white": "Maize is a staple energy source. Current trends show price stability due to recent harvests.",
     "soya beans": "High demand for poultry feed continues to drive soy prices globally and locally.",
@@ -39,15 +38,22 @@ def home():
     }
 
 def fetch_data():
+    """Fetch Kasuwa internal prices data"""
     try:
-        # Pulls data directly from the table 'prices'
         return pd.read_sql("SELECT * FROM prices", engine)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cloud Database Error: {str(e)}")
 
+def fetch_other_sources_data():
+    """Fetch other sources (scraped) data"""
+    try:
+        return pd.read_sql("SELECT * FROM other_sources ORDER BY date DESC", engine)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Other Sources Database Error: {str(e)}")
+
 @app.get("/prices")
 def get_all_prices():
-    """Returns all data from the database to verify the connection."""
+    """Returns all data from the prices table (Kasuwa internal data)."""
     try:
         df = fetch_data()
         if 'start_time' in df.columns:
@@ -55,6 +61,26 @@ def get_all_prices():
         return df.to_dict(orient='records')
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+
+@app.get("/other-sources")
+def get_other_sources():
+    """Returns all data from the other_sources table (scraped data) - EXACT MATCH FOR SCREENSHOT"""
+    try:
+        df = fetch_other_sources_data()
+        
+        # Convert date to string for JSON serialization
+        if 'date' in df.columns:
+            df['date'] = df['date'].astype(str)
+        
+        # Ensure all required columns are present
+        required_cols = ['date', 'commodity', 'location', 'unit', 'price']
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = ''
+        
+        return df[required_cols].to_dict(orient='records')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Other sources fetch failed: {str(e)}")
 
 @app.get("/intelligence/{commodity}")
 def get_intelligence(commodity: str):
@@ -64,6 +90,7 @@ def get_intelligence(commodity: str):
 
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets"):
+    """Analysis endpoint for Kasuwa internal prices"""
     df = fetch_data() 
     
     # 1. Date Processing
@@ -80,7 +107,7 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets"):
     if df.empty:
         return {"chart_data": [], "metrics": {"avg": 0, "max": 0, "min": 0}}
 
-    # 3. Numeric Safety (Ensures calculations don't fail)
+    # 3. Numeric Safety
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
     df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
 
@@ -95,6 +122,7 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets"):
 
 @app.post("/update-price")
 def update_price(data: dict, token: str = Depends(api_key_header)):
+    """Add new record to prices table (Kasuwa internal)"""
     if token != API_KEY:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -108,3 +136,31 @@ def update_price(data: dict, token: str = Depends(api_key_header)):
         return {"status": "success", "message": f"Added record for {data['commodity']}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+@app.post("/bulk-upload-other-sources")
+def bulk_upload_other_sources(records: list, token: str = Depends(api_key_header)):
+    """
+    Bulk upload multiple records to other_sources table
+    Expected format for each record:
+    {
+        "date": "2026-01-29 15:30:00",
+        "commodity": "Maize",
+        "location": "Giwa Market, Kaduna State",
+        "unit": "bag",
+        "price": 25000
+    }
+    """
+    if token != API_KEY:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    try:
+        with engine.begin() as conn:
+            query = text("""
+                INSERT INTO other_sources (date, commodity, location, unit, price)
+                VALUES (:date, :commodity, :location, :unit, :price)
+            """)
+            for record in records:
+                conn.execute(query, record)
+        return {"status": "success", "message": f"Added {len(records)} other sources records"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
