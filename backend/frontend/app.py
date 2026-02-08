@@ -197,6 +197,11 @@ commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
                                                    "July", "August", "September", "October", "November", "December"])
+
+# Add Year filter to main sidebar (moved from Other sources)
+years_list = ["2024", "2025", "2026"]
+selected_years = st.sidebar.multiselect("Year", years_list, default=years_list, key="main_years")
+
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
 display_name = format_commodity_name(commodity_raw)
@@ -324,136 +329,7 @@ except Exception as e:
     st.error(f"Archive Table Error: {e}")
 
 # =====================================================
-# 8. OTHER SOURCES COMMODITY PRICES (EXACT SCREENSHOT MATCH)
-# =====================================================
-st.markdown("---")
-st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Other sources Commodity Prices</h1>", unsafe_allow_html=True)
-
-try:
-    # Fetch other sources data
-    os_response = requests.get(f"{BASE_URL}/other-sources", headers=HEADERS)
-    
-    if os_response.status_code == 200:
-        os_data_raw = os_response.json()
-        
-        if os_data_raw:
-            os_data = pd.DataFrame(os_data_raw)
-            
-            # Data processing
-            os_data['date'] = pd.to_datetime(os_data['date'], errors='coerce')
-            os_data['month_name'] = os_data['date'].dt.strftime('%B')
-            os_data['year'] = os_data['date'].dt.year.astype(str)
-            os_data['price'] = pd.to_numeric(os_data['price'], errors='coerce')
-            
-            # Sidebar filters for Other sources
-            st.sidebar.markdown("---")
-            st.sidebar.markdown("### 🌐 Other sources Controls")
-            
-            # Year filter with multi-select
-            available_years = sorted(os_data['year'].unique().tolist())
-            selected_years = st.sidebar.multiselect(
-                "Year", 
-                available_years, 
-                default=available_years,
-                key="os_years"
-            )
-            
-            # Commodity filter
-            os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
-            selected_os_comm = st.sidebar.selectbox(
-                "Filter Other sources Commodity", 
-                os_commodities, 
-                key="os_comm_filter"
-            )
-            
-            # Market filter
-            os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
-            selected_os_loc = st.sidebar.selectbox(
-                "Filter Other sources Market", 
-                os_locations, 
-                key="os_loc_filter"
-            )
-            
-            # Month filter
-            os_months = ["All", "January", "February", "March", "April", "May", "June", 
-                        "July", "August", "September", "October", "November", "December"]
-            selected_os_month = st.sidebar.selectbox(
-                "Filter Other sources Month", 
-                os_months, 
-                key="os_month_filter"
-            )
-            
-            # Apply filters
-            filtered_os = os_data.copy()
-            
-            if selected_years:
-                filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
-            
-            if selected_os_comm != "All":
-                filtered_os = filtered_os[filtered_os['commodity'] == selected_os_comm]
-            
-            if selected_os_loc != "All":
-                filtered_os = filtered_os[filtered_os['location'] == selected_os_loc]
-            
-            if selected_os_month != "All":
-                filtered_os = filtered_os[filtered_os['month_name'] == selected_os_month]
-            
-            # Search box
-            os_search = st.text_input(
-                "🔍 Enter keyword...", 
-                placeholder="Search by commodity, location...",
-                key="os_search_input"
-            )
-            
-            if os_search:
-                mask = filtered_os.apply(
-                    lambda row: row.astype(str).str.contains(os_search, case=False).any(), 
-                    axis=1
-                )
-                filtered_os = filtered_os[mask]
-            
-            # Display table - EXACT MATCH TO SCREENSHOT
-            if not filtered_os.empty:
-                # Format the display dataframe
-                display_df = filtered_os[['date', 'commodity', 'location', 'unit', 'price']].copy()
-                
-                # Format date column to match screenshot
-                display_df['Date'] = display_df['date'].dt.strftime('%d %b %Y, %I:%M %p')
-                
-                # Rename columns to match screenshot
-                display_df = display_df.rename(columns={
-                    'commodity': 'Commodity',
-                    'location': 'Location',
-                    'unit': 'unit',
-                    'price': 'Price (₦)'
-                })
-                
-                # Select final columns in correct order
-                display_df = display_df[['Date', 'Commodity', 'Location', 'unit', 'Price (₦)']]
-                
-                # Display with formatting
-                st.dataframe(
-                    display_df.style.format({
-                        'Price (₦)': '₦{:,.0f}'
-                    }),
-                    use_container_width=True,
-                    hide_index=True,
-                    height=600
-                )
-                
-                st.info(f"📊 Showing {len(display_df)} records")
-            else:
-                st.warning("No data matches your filter criteria.")
-        else:
-            st.info("📭 No other sources data available yet. Upload your scraped data using the upload script.")
-    else:
-        st.error(f"Could not fetch other sources data. API Status: {os_response.status_code}")
-        
-except Exception as e:
-    st.error(f"Other Sources Error: {e}")
-
-# =====================================================
-# 9. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
+# 8. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
 # =====================================================
 st.markdown("---")
 st.header(f"📋 Monthly Intelligence Report: {month_sel}")
@@ -541,6 +417,71 @@ try:
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # =====================================================
+                # MARKET COMPARISON SECTION
+                # =====================================================
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader("📊 Market Comparison")
+                st.write(f"Compare {commodity_raw} prices across different markets")
+                
+                # Get list of markets with data for this commodity
+                available_markets = sorted(strategy_df['market'].unique().tolist())
+                
+                if len(available_markets) >= 2:
+                    col_comp1, col_comp2 = st.columns(2)
+                    
+                    with col_comp1:
+                        market_a = st.selectbox("Select First Market", available_markets, key="comp_market_a")
+                    
+                    with col_comp2:
+                        remaining_markets = [m for m in available_markets if m != market_a]
+                        market_b = st.selectbox("Select Second Market", remaining_markets, key="comp_market_b")
+                    
+                    # Calculate prices for both markets
+                    price_a = strategy_df[strategy_df['market'] == market_a][target_col].mean()
+                    price_b = strategy_df[strategy_df['market'] == market_b][target_col].mean()
+                    
+                    # Calculate difference
+                    diff = price_b - price_a
+                    perc_diff = (diff / price_a) * 100 if price_a != 0 else 0
+                    
+                    # Determine which is cheaper
+                    cheaper_market = market_a if price_a < price_b else market_b
+                    cheaper_price = min(price_a, price_b)
+                    expensive_market = market_b if price_a < price_b else market_a
+                    expensive_price = max(price_a, price_b)
+                    
+                    unit_label_comp = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
+                    
+                    # Display comparison cards
+                    comp_col1, comp_col2 = st.columns(2)
+                    
+                    with comp_col1:
+                        st.markdown(f"""
+                            <div class="strategy-card best-buy">
+                                <div style="font-size: 14px; opacity: 0.9;">CHEAPER MARKET</div>
+                                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{cheaper_market}</div>
+                                <div style="font-size: 20px;">₦{cheaper_price:,.2f} <small>({unit_label_comp})</small></div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with comp_col2:
+                        st.markdown(f"""
+                            <div class="strategy-card worst-buy">
+                                <div style="font-size: 14px; opacity: 0.9;">MORE EXPENSIVE</div>
+                                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{expensive_market}</div>
+                                <div style="font-size: 20px;">₦{expensive_price:,.2f} <small>({unit_label_comp})</small></div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Price difference insight
+                    if abs(perc_diff) > 0:
+                        insight_text = f"💰 **Price Difference:** {market_b} is {abs(perc_diff):.1f}% {'more expensive' if perc_diff > 0 else 'cheaper'} than {market_a} (₦{abs(diff):,.2f} difference)"
+                        st.info(insight_text)
+                
+                else:
+                    st.info(f"Need at least 2 markets with data for {commodity_raw} to enable comparison.")
             else:
                 st.info(f"Insufficient market data for strategic sourcing analysis of {commodity_raw} in {month_sel}.")
         else:
@@ -549,7 +490,134 @@ except Exception as e:
     st.error(f"Monthly Report Error: {e}")
 
 # =====================================================
-# 10. FOOTER
+# 10. OTHER SOURCES COMMODITY PRICES (MOVED TO END)
+# =====================================================
+st.markdown("---")
+st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Other sources Commodity Prices</h1>", unsafe_allow_html=True)
+
+try:
+    # Fetch other sources data
+    os_response = requests.get(f"{BASE_URL}/other-sources", headers=HEADERS)
+    
+    if os_response.status_code == 200:
+        os_data_raw = os_response.json()
+        
+        if os_data_raw:
+            os_data = pd.DataFrame(os_data_raw)
+            
+            # Data processing
+            os_data['date'] = pd.to_datetime(os_data['date'], errors='coerce')
+            os_data['month_name'] = os_data['date'].dt.strftime('%B')
+            os_data['year'] = os_data['date'].dt.year.astype(str)
+            os_data['price'] = pd.to_numeric(os_data['price'], errors='coerce')
+            
+            # Sidebar filters for Other sources
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("### 🌐 Other sources Controls")
+            
+            # Commodity filter
+            os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+            selected_os_comm = st.sidebar.selectbox(
+                "Filter Other sources Commodity", 
+                os_commodities, 
+                key="os_comm_filter"
+            )
+            
+            # Market filter
+            os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
+            selected_os_loc = st.sidebar.selectbox(
+                "Filter Other sources Market", 
+                os_locations, 
+                key="os_loc_filter"
+            )
+            
+            # Month filter
+            os_months = ["All", "January", "February", "March", "April", "May", "June", 
+                        "July", "August", "September", "October", "November", "December"]
+            selected_os_month = st.sidebar.selectbox(
+                "Filter Other sources Month", 
+                os_months, 
+                key="os_month_filter"
+            )
+            
+            # Apply filters (use main year filter from sidebar)
+            filtered_os = os_data.copy()
+            
+            if selected_years:  # Use the main year filter
+                filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
+            
+            if selected_os_comm != "All":
+                filtered_os = filtered_os[filtered_os['commodity'] == selected_os_comm]
+            
+            if selected_os_loc != "All":
+                filtered_os = filtered_os[filtered_os['location'] == selected_os_loc]
+            
+            if selected_os_month != "All":
+                filtered_os = filtered_os[filtered_os['month_name'] == selected_os_month]
+            
+            # Search box
+            os_search = st.text_input(
+                "🔍 Search by commodity, location...", 
+                placeholder="Enter keyword...",
+                key="os_search_input"
+            )
+            
+            if os_search:
+                mask = filtered_os.apply(
+                    lambda row: row.astype(str).str.contains(os_search, case=False).any(), 
+                    axis=1
+                )
+                filtered_os = filtered_os[mask]
+            
+            # Display table - EXACT MATCH TO SCREENSHOT
+            if not filtered_os.empty:
+                # Format the display dataframe
+                display_df = filtered_os[['date', 'commodity', 'location', 'unit', 'price']].copy()
+                
+                # Format date column to match screenshot
+                display_df['Date'] = display_df['date'].dt.strftime('%d %b %Y, %I:%M %p')
+                
+                # Rename columns to match screenshot
+                display_df = display_df.rename(columns={
+                    'commodity': 'Commodity',
+                    'location': 'Location',
+                    'unit': 'unit',
+                    'price': 'Price (₦)'
+                })
+                
+                # Select final columns in correct order
+                display_df = display_df[['Date', 'Commodity', 'Location', 'unit', 'Price (₦)']]
+                
+                # Display with formatting
+                st.dataframe(
+                    display_df.style.format({
+                        'Price (₦)': '₦{:,.0f}'
+                    }),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=600
+                )
+                
+                # Show record count with better visibility
+                st.markdown(f"""
+                    <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: center;">
+                        <p style="color: #1F7A3F; font-size: 18px; font-weight: bold; margin: 0;">
+                            📊 Showing {len(display_df):,} records from Other sources
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.warning("No data matches your filter criteria.")
+        else:
+            st.info("📭 No other sources data available yet. Upload your scraped data using the upload script.")
+    else:
+        st.error(f"Could not fetch other sources data. API Status: {os_response.status_code}")
+        
+except Exception as e:
+    st.error(f"Other Sources Error: {e}")
+
+# =====================================================
+# 11. FOOTER
 # =====================================================
 st.markdown("---")
 st.markdown("""
