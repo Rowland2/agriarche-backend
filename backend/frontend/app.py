@@ -263,7 +263,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # =====================================================
 # 5. SIDEBAR
 # =====================================================
-st.sidebar.title("Kasuwa Internal Prices")
+st.sidebar.title("Market Filters")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
@@ -389,6 +389,9 @@ try:
             df_hist["Date"] = pd.to_datetime(df_hist["start_time"]).dt.strftime('%Y-%m-%d')
             df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
             df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
+            
+            # Apply commodity name normalization (Color First format)
+            df_hist["commodity"] = df_hist["commodity"].apply(normalize_commodity_for_display)
 
             # Selecting columns to display
             display_cols = ["Date", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)"]
@@ -719,7 +722,7 @@ except Exception as e:
 st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
+        <p><strong>Kasuwa Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
+        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
