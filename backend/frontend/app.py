@@ -67,6 +67,27 @@ def normalize_commodity_for_display(name):
     
     return name
 
+def convert_display_to_api_format(display_name):
+    """Convert display name (Color First) back to API format (Color Last) for querying"""
+    name = display_name.strip()
+    
+    # Map display names to API format
+    mappings = {
+        "Brown Cowpea": "Cowpea Brown",
+        "White Cowpea": "Cowpea White",
+        "White Maize": "Maize White",
+        "Red Sorghum": "Sorghum Red",
+        "Soya Beans": "Soya Beans",
+        "Honey beans": "Honey beans",
+        "Rice Paddy": "Rice Paddy",
+        "Rice processed": "Rice processed",
+        "Millet": "Millet",
+        "Groundnut gargaja": "Groundnut gargaja",
+        "Groundnut kampala": "Groundnut kampala"
+    }
+    
+    return mappings.get(name, name)
+
 HARDCODED_COMMODITIES = sorted(list(COMMODITY_INFO.keys()))
 HARDCODED_MARKETS = ["Biliri", "Dawanau", "Giwa", "Kumo", "Lashe Money", "Pambegua", "Potiskum", "Sabo Kasuwa Mubi"]
 
@@ -257,6 +278,9 @@ price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per
 display_name = format_commodity_name(commodity_raw)
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
+# Convert display name back to API format for querying
+api_commodity_name = convert_display_to_api_format(commodity_raw)
+
 # =====================================================
 # 6. MAIN CONTENT (CHART & KPIs)
 # =====================================================
@@ -265,7 +289,7 @@ import os
 if os.path.exists(LOGO_PATH):
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image(LOGO_PATH, use_column_width=True)
+        st.image(LOGO_PATH, use_container_width=True)
 else:
     st.markdown("<div style='text-align: center; padding: 20px;'><h1 style='color: #1F7A3F;'>🌾 AGRIARCHE</h1></div>", unsafe_allow_html=True)
 
@@ -276,7 +300,7 @@ st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
 try:
     timestamp = int(time.time())
     response = requests.get(f"{BASE_URL}/analysis", 
-                            params={"commodity": commodity_raw, "month": month_sel, "market": market_sel, "v": timestamp}, 
+                            params={"commodity": api_commodity_name, "month": month_sel, "market": market_sel, "v": timestamp}, 
                             headers=HEADERS)
     
     if response.status_code == 200:
@@ -424,7 +448,7 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
 
             # STRATEGIC SOURCING CARDS (responds to Price per Kg/Bag toggle)
-            strategy_df = report_data[report_data["commodity"] == commodity_raw].copy()
+            strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy()
             
             if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
                 # Use the same target_col as selected in sidebar (price_per_kg or price_per_bag)
@@ -438,7 +462,7 @@ try:
                 # Display unit based on selection
                 unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
                 
-                st.subheader(f"🎯 Strategic Sourcing: {commodity_raw}")
+                st.subheader(f"🎯 Strategic Sourcing: {display_name}")
                 scol1, scol2 = st.columns(2)
                 with scol1:
                     st.markdown(f"""
@@ -462,22 +486,22 @@ try:
                 st.subheader("🤖 AI Market Advisor")
                 
                 volatility = ((max_val - min_val) / min_val) * 100 if min_val > 0 else 0
-                annual_avg = all_data[all_data["commodity"] == commodity_raw]["price_per_kg"].mean()
+                annual_avg = all_data[all_data["commodity"].str.lower() == api_commodity_name.lower()]["price_per_kg"].mean()
                 
                 if volatility > 20:
-                    advice = f"🚨 **High Volatility Warning:** {commodity_raw} prices are fluctuating significantly ({volatility:.1f}%). Avoid spot-buying; look for long-term fixed contracts in {best_m}."
+                    advice = f"🚨 **High Volatility Warning:** {display_name} prices are fluctuating significantly ({volatility:.1f}%). Avoid spot-buying; look for long-term fixed contracts in {best_m}."
                     bg_adv = "#FFF4E5"
                 elif avg_val < annual_avg:
-                    advice = f"✅ **Optimal Buy Window:** Prices for {commodity_raw} in {month_sel} are {((annual_avg-avg_val)/annual_avg)*100:.1f}% below the annual average. Strong window for inventory stocking."
+                    advice = f"✅ **Optimal Buy Window:** Prices for {display_name} in {month_sel} are {((annual_avg-avg_val)/annual_avg)*100:.1f}% below the annual average. Strong window for inventory stocking."
                     bg_adv = "#E8F5E9"
                 else:
-                    advice = f"ℹ️ **Market Stability:** {commodity_raw} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best margins."
+                    advice = f"ℹ️ **Market Stability:** {display_name} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best margins."
                     bg_adv = "#E3F2FD"
 
                 st.markdown(f"""
                     <div class="advisor-container" style="background-color: {bg_adv};">
                         <p style="color: #1F2937; font-size: 16px; margin: 0; line-height: 1.6;">
-                            <b>Strategic Insight for {commodity_raw}:</b><br>{advice}
+                            <b>Strategic Insight for {display_name}:</b><br>{advice}
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
@@ -487,7 +511,7 @@ try:
                 # =====================================================
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("📊 Market Comparison")
-                st.write(f"Compare {commodity_raw} prices across different markets")
+                st.write(f"Compare {display_name} prices across different markets")
                 
                 # Get list of markets with data for this commodity
                 available_markets = sorted(strategy_df['market'].unique().tolist())
@@ -552,9 +576,9 @@ try:
                         """, unsafe_allow_html=True)
                 
                 else:
-                    st.info(f"Need at least 2 markets with data for {commodity_raw} to enable comparison.")
+                    st.info(f"Need at least 2 markets with data for {display_name} to enable comparison.")
             else:
-                st.info(f"Insufficient market data for strategic sourcing analysis of {commodity_raw} in {month_sel}.")
+                st.info(f"Insufficient market data for strategic sourcing analysis of {display_name} in {month_sel}.")
         else:
             st.info(f"No data available for {month_sel}.")
 except Exception as e:
