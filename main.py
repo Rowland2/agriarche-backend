@@ -1,10 +1,20 @@
-from fastapi import FastAPI, Security, HTTPException, status, Depends
+from fastapi import FastAPI, Security, HTTPException, status, Depends, Body
 from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import create_engine, text
 import pandas as pd
 import os
+from typing import List
+from pydantic import BaseModel
 
 app = FastAPI(title="Agriarche Data Hub")
+
+# --- PYDANTIC MODELS ---
+class OtherSourceRecord(BaseModel):
+    date: str
+    commodity: str
+    location: str
+    unit: str
+    price: float
 
 # --- DATABASE SETUP (NEON CLOUD) ---
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -138,7 +148,7 @@ def update_price(data: dict, token: str = Depends(api_key_header)):
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 @app.post("/bulk-upload-other-sources")
-def bulk_upload_other_sources(records: list, token: str = Depends(api_key_header)):
+def bulk_upload_other_sources(records: List[OtherSourceRecord], token: str = Depends(api_key_header)):
     """
     Bulk upload multiple records to other_sources table
     Expected format for each record:
@@ -160,7 +170,8 @@ def bulk_upload_other_sources(records: list, token: str = Depends(api_key_header
                 VALUES (:date, :commodity, :location, :unit, :price)
             """)
             for record in records:
-                conn.execute(query, record)
+                # Convert Pydantic model to dict for SQLAlchemy
+                conn.execute(query, record.dict())
         return {"status": "success", "message": f"Added {len(records)} other sources records"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
