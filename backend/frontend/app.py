@@ -24,26 +24,64 @@ LOGO_PATH = "assets/logo.png"  # Optional: add your logo
 
 COMMODITY_INFO = {
     "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
-    "Cowpea Brown": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
-    "Cowpea White": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
+    "Brown Cowpea": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
+    "White Cowpea": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
     "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
-    "Maize White": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
+    "White Maize": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
     "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
     "Rice processed": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
-    "Sorghum Red": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
+    "Red Sorghum": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
     "Millet": {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
     "Groundnut gargaja": {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty."},
     "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
 }
 
+# Function to normalize commodity names (color first)
+def normalize_commodity_for_display(name):
+    """Normalize to match COMMODITY_INFO keys with color first"""
+    name_lower = name.lower().strip()
+    
+    # Map common variations to standardized names
+    if "cowpea" in name_lower and "brown" in name_lower:
+        return "Brown Cowpea"
+    elif "cowpea" in name_lower and "white" in name_lower:
+        return "White Cowpea"
+    elif "maize" in name_lower and "white" in name_lower:
+        return "White Maize"
+    elif "sorghum" in name_lower and "red" in name_lower:
+        return "Red Sorghum"
+    elif "soya" in name_lower or "soy" in name_lower:
+        return "Soya Beans"
+    elif "honey" in name_lower:
+        return "Honey beans"
+    elif "rice" in name_lower and "paddy" in name_lower:
+        return "Rice Paddy"
+    elif "rice" in name_lower and "process" in name_lower:
+        return "Rice processed"
+    elif "millet" in name_lower:
+        return "Millet"
+    elif "groundnut" in name_lower and "gargaja" in name_lower:
+        return "Groundnut gargaja"
+    elif "groundnut" in name_lower and "kampala" in name_lower:
+        return "Groundnut kampala"
+    
+    return name
+
 HARDCODED_COMMODITIES = sorted(list(COMMODITY_INFO.keys()))
 HARDCODED_MARKETS = ["Biliri", "Dawanau", "Giwa", "Kumo", "Lashe Money", "Pambegua", "Potiskum", "Sabo Kasuwa Mubi"]
 
 def format_commodity_name(name):
+    """Format commodity names to put color adjectives FIRST"""
     parts = name.split()
     colors_list = ["white", "brown", "red", "yellow", "black"]
+    
+    # Check if last word is a color
     if len(parts) > 1 and parts[-1].lower() in colors_list:
-        return f"{parts[-1].capitalize()} {' '.join(parts[:-1])}"
+        # Move color to the front: "Cowpea White" -> "White Cowpea"
+        color = parts[-1].capitalize()
+        commodity = ' '.join(parts[:-1])
+        return f"{color} {commodity}"
+    
     return name.capitalize()
 
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
@@ -137,8 +175,19 @@ def generate_pdf_report(month_name, report_df):
     elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}", body_style))
     elements.append(Spacer(1, 20))
 
+    # --- WATERMARK LOGIC WITH LOGO ---
+    def add_watermark(canvas, doc):
+        canvas.saveState()
+        # Add logo watermark if exists
+        if os.path.exists(LOGO_PATH):
+            canvas.setFillAlpha(0.1)
+            canvas.drawImage(LOGO_PATH, letter[0]/2 - 1.5*inch, letter[1]/2 - 1.5*inch, 
+                           width=3*inch, preserveAspectRatio=True, mask='auto')
+        canvas.restoreState()
+
     # --- CONTENT GENERATION (GROUPED BY MARKET) ---
-    summary_table_data = [["Market", "Commodity", "Avg Price/Kg (₦)", "High/Kg (₦)", "Low/Kg (₦)"]]
+    # Use "N" instead of ₦ symbol for PDF compatibility
+    summary_table_data = [["Market", "Commodity", "Avg Price/Kg (N)", "High/Kg (N)", "Low/Kg (N)"]]
     unique_markets = sorted(report_df["market"].unique())
 
     for market in unique_markets:
@@ -154,8 +203,9 @@ def generate_pdf_report(month_name, report_df):
             low_p = comm_df["price_per_kg"].min()
             
             elements.append(Paragraph(f"<b>{comm}</b>", sub_style))
-            text = (f"In {market}, the average price for {comm} was <b>₦{avg_p:,.2f}/Kg</b>. "
-                    f"Prices peaked at ₦{high_p:,.2f}/Kg with a floor of ₦{low_p:,.2f}/Kg.")
+            # Use "N" instead of ₦ for PDF compatibility
+            text = (f"In {market}, the average price for {comm} was <b>N{avg_p:,.2f}/Kg</b>. "
+                    f"Prices peaked at N{high_p:,.2f}/Kg with a floor of N{low_p:,.2f}/Kg.")
             elements.append(Paragraph(text, body_style))
             
             summary_table_data.append([market, comm, f"{avg_p:,.2f}", f"{high_p:,.2f}", f"{low_p:,.2f}"])
@@ -179,7 +229,7 @@ def generate_pdf_report(month_name, report_df):
     ]))
     elements.append(t)
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
     buffer.seek(0)
     return buffer
 
@@ -200,7 +250,7 @@ month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March"
 
 # Add Year filter to main sidebar (moved from Other sources)
 years_list = ["2024", "2025", "2026"]
-selected_years = st.sidebar.multiselect("Year", years_list, default=years_list, key="main_years")
+selected_years = st.sidebar.multiselect("Year", years_list, default=["2026"], key="main_years")
 
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
@@ -210,6 +260,15 @@ target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_ba
 # =====================================================
 # 6. MAIN CONTENT (CHART & KPIs)
 # =====================================================
+# Display logo at top if it exists
+import os
+if os.path.exists(LOGO_PATH):
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image(LOGO_PATH, use_column_width=True)
+else:
+    st.markdown("<div style='text-align: center; padding: 20px;'><h1 style='color: #1F7A3F;'>🌾 AGRIARCHE</h1></div>", unsafe_allow_html=True)
+
 st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
 
@@ -265,6 +324,11 @@ try:
             """, unsafe_allow_html=True)
             
             info = COMMODITY_INFO.get(commodity_raw, {"desc": "", "markets": "", "abundance": "", "note": ""})
+            # If not found, try normalized version
+            if not info.get("desc"):
+                normalized = normalize_commodity_for_display(commodity_raw)
+                info = COMMODITY_INFO.get(normalized, {"desc": "Market data profiling in progress...", "markets": "Northern Hubs", "abundance": "Seasonal", "note": "Monitoring price shifts."})
+            
             st.markdown(f"""
                 <div class="advisor-container" style="border-left: 5px solid {ACCENT_COLOR};">
                     <p style="color: #1F2937; font-size: 17px; margin: 0; line-height: 1.8;">
@@ -475,10 +539,17 @@ try:
                             </div>
                         """, unsafe_allow_html=True)
                     
-                    # Price difference insight
+                    # Price difference insight - MORE READABLE
                     if abs(perc_diff) > 0:
-                        insight_text = f"💰 **Price Difference:** {market_b} is {abs(perc_diff):.1f}% {'more expensive' if perc_diff > 0 else 'cheaper'} than {market_a} (₦{abs(diff):,.2f} difference)"
-                        st.info(insight_text)
+                        insight_text = f"{market_b} is **{abs(perc_diff):.1f}%** {'more expensive' if perc_diff > 0 else 'cheaper'} than {market_a} (**₦{abs(diff):,.2f}** difference)"
+                        
+                        st.markdown(f"""
+                            <div style="background-color: #FFF4E5; padding: 20px; border-radius: 10px; margin-top: 15px; border-left: 5px solid {ACCENT_COLOR};">
+                                <p style="color: #1F2937; font-size: 17px; font-weight: 600; margin: 0; line-height: 1.6;">
+                                    💰 <b>Price Difference:</b> {insight_text}
+                                </p>
+                            </div>
+                        """, unsafe_allow_html=True)
                 
                 else:
                     st.info(f"Need at least 2 markets with data for {commodity_raw} to enable comparison.")
