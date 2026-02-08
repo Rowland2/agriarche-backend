@@ -263,7 +263,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # =====================================================
 # 5. SIDEBAR
 # =====================================================
-st.sidebar.title("Market Filters")
+st.sidebar.title("Kasuwa Internal Prices")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
