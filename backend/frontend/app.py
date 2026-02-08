@@ -511,41 +511,43 @@ try:
             os_data['year'] = os_data['date'].dt.year.astype(str)
             os_data['price'] = pd.to_numeric(os_data['price'], errors='coerce')
             
-            # Sidebar filters for Other sources
+            # INDEPENDENT SIDEBAR FILTERS FOR OTHER SOURCES
             st.sidebar.markdown("---")
             st.sidebar.markdown("### 🌐 Other sources Controls")
             
-            # Commodity filter
+            # Independent Commodity filter for Other sources
             os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
             selected_os_comm = st.sidebar.selectbox(
-                "Filter Other sources Commodity", 
+                "Other sources Commodity", 
                 os_commodities, 
-                key="os_comm_filter"
+                key="os_comm_independent"
             )
             
-            # Market filter
+            # Independent Market filter for Other sources
             os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
             selected_os_loc = st.sidebar.selectbox(
-                "Filter Other sources Market", 
+                "Other sources Market", 
                 os_locations, 
-                key="os_loc_filter"
+                key="os_loc_independent"
             )
             
-            # Month filter
+            # Independent Month filter for Other sources
             os_months = ["All", "January", "February", "March", "April", "May", "June", 
                         "July", "August", "September", "October", "November", "December"]
             selected_os_month = st.sidebar.selectbox(
-                "Filter Other sources Month", 
+                "Other sources Month", 
                 os_months, 
-                key="os_month_filter"
+                key="os_month_independent"
             )
             
-            # Apply filters (use main year filter from sidebar)
+            # Apply INDEPENDENT filters (don't use main filters)
             filtered_os = os_data.copy()
             
-            if selected_years:  # Use the main year filter
+            # Filter by selected years from MAIN sidebar (Year filter is shared)
+            if selected_years:
                 filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
             
+            # Apply Other sources specific filters
             if selected_os_comm != "All":
                 filtered_os = filtered_os[filtered_os['commodity'] == selected_os_comm]
             
