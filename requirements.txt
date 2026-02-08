@@ -5,8 +5,7 @@ sqlalchemy
 psycopg2-binary
 pandas
 openpyxl
-streamlit
+streamlit>=1.35.0
 plotly
 requests
 reportlab
-
