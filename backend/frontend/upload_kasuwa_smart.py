@@ -200,7 +200,7 @@ def upload_new_records_only(excel_file_path):
             "market": str(row['market']),
             "commodity": str(row['commodity']),
             "price_per_bag": float(row['price_per_bag']),
-            "weight_of_bag_kg": float(row['weight_of_bag_kg']),
+            "weight_of_bag_(kg)": float(row['weight_of_bag_kg']), # Left side changed!
             "price_per_kg": float(row['price_per_kg']),
             "availability": str(row['availability']),
             "commodity_type": str(row['commodity_type'])
