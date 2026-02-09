@@ -30,8 +30,21 @@ def upload_new_records_only(excel_file_path):
     # Read Excel
     print(f"\n📂 Reading: {excel_file_path}")
     try:
-        df = pd.read_excel(excel_file_path)
-        print(f"✅ Loaded {len(df)} rows from Excel")
+        # Auto-detect file type
+        if excel_file_path.lower().endswith('.csv'):
+            df = pd.read_csv(excel_file_path)
+            print(f"✅ Loaded {len(df)} rows from CSV")
+        elif excel_file_path.lower().endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(excel_file_path)
+            print(f"✅ Loaded {len(df)} rows from Excel")
+        else:
+            # Try CSV first, then Excel
+            try:
+                df = pd.read_csv(excel_file_path)
+                print(f"✅ Loaded {len(df)} rows from CSV")
+            except:
+                df = pd.read_excel(excel_file_path)
+                print(f"✅ Loaded {len(df)} rows from Excel")
     except Exception as e:
         print(f"❌ Error reading file: {e}")
         return
