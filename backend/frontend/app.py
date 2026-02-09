@@ -20,7 +20,7 @@ from reportlab.platypus import Flowable
 PRIMARY_COLOR = "#1F7A3F" 
 ACCENT_COLOR = "#F4B266"  
 BG_COLOR = "#F5F7FA"
-LOGO_PATH = "assets/logo.png"  # Optional: add your logo
+LOGO_PATH = "assets/logo.PNG"  # Optional: add your logo
 
 COMMODITY_INFO = {
     "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
