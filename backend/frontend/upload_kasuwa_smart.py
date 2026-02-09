@@ -27,14 +27,11 @@ def upload_new_records_only(excel_file_path):
     print("SMART UPLOAD - NEW RECORDS ONLY")
     print("=" * 70)
     
-    # Read File (Auto-detect CSV or Excel)
+    # Read Excel
     print(f"\n📂 Reading: {excel_file_path}")
     try:
-        if excel_file_path.lower().endswith('.csv'):
-            df = pd.read_csv(excel_file_path)
-        else:
-            df = pd.read_excel(excel_file_path)
-        print(f"✅ Loaded {len(df)} rows")
+        df = pd.read_excel(excel_file_path)
+        print(f"✅ Loaded {len(df)} rows from Excel")
     except Exception as e:
         print(f"❌ Error reading file: {e}")
         return
@@ -74,24 +71,45 @@ def upload_new_records_only(excel_file_path):
     df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
     df = df.dropna(subset=['start_time'])
     
+    # Clean text columns FIRST
+    df['commodity'] = df['commodity'].astype(str).str.strip()
+    df['market'] = df['market'].astype(str).str.strip()
+    
     if 'price_per_bag' not in df.columns:
-        df['price_per_bag'] = df['price_per_kg'] * 100
+        df['price_per_bag'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 100
+    else:
+        df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce')
+    
     if 'weight_of_bag_kg' not in df.columns:
         df['weight_of_bag_kg'] = 100
+    else:
+        df['weight_of_bag_kg'] = pd.to_numeric(df['weight_of_bag_kg'], errors='coerce').fillna(100)
+    
     if 'agent_code' not in df.columns:
         df['agent_code'] = 'WEB_UPLOAD'
+    else:
+        df['agent_code'] = df['agent_code'].astype(str).str.strip()
+        
     if 'state' not in df.columns:
         df['state'] = 'Unknown'
+    else:
+        df['state'] = df['state'].astype(str).str.strip()
+        
     if 'availability' not in df.columns:
         df['availability'] = 'Available'
+    else:
+        df['availability'] = df['availability'].astype(str).str.strip()
+        
     if 'commodity_type' not in df.columns:
         df['commodity_type'] = 'General'
+    else:
+        df['commodity_type'] = df['commodity_type'].astype(str).str.strip()
     
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-    df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce')
-    df = df.dropna(subset=['price_per_kg', 'price_per_bag'])
+    df = df.dropna(subset=['price_per_kg'])
+    df = df.dropna(subset=['price_per_bag'])
     
-    print(f"✅ {len(df)} valid rows in Excel")
+    print(f"✅ {len(df)} valid rows in file")
     
     # Fetch existing data from database
     print("\n🔍 Checking database for existing records...")
@@ -101,20 +119,23 @@ def upload_new_records_only(excel_file_path):
             existing_data = pd.DataFrame(response.json())
             
             if not existing_data.empty:
-                existing_data['start_time'] = pd.to_datetime(existing_data['start_time'])
+                existing_data['start_time'] = pd.to_datetime(existing_data['start_time'], errors='coerce')
+                existing_data['commodity'] = existing_data['commodity'].astype(str).str.strip().str.lower()
+                existing_data['market'] = existing_data['market'].astype(str).str.strip().str.lower()
+                
                 print(f"📊 Database has {len(existing_data)} existing records")
                 
                 # Create unique identifier for deduplication
                 df['unique_key'] = (
-                    df['start_time'].dt.strftime('%Y-%m-%d %H:%M') + '_' +
+                    df['start_time'].dt.strftime('%Y-%m-%d') + '_' +
                     df['commodity'].str.lower() + '_' +
                     df['market'].str.lower()
                 )
                 
                 existing_data['unique_key'] = (
-                    existing_data['start_time'].dt.strftime('%Y-%m-%d %H:%M') + '_' +
-                    existing_data['commodity'].str.lower() + '_' +
-                    existing_data['market'].str.lower()
+                    existing_data['start_time'].dt.strftime('%Y-%m-%d') + '_' +
+                    existing_data['commodity'] + '_' +
+                    existing_data['market']
                 )
                 
                 # Find NEW records only
