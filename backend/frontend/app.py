@@ -31,6 +31,9 @@ COMMODITY_INFO = {
     "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
     "Rice processed": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
     "Red Sorghum": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
+    "White Sorghum": {"desc": "Drought-resistant white grain variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Premium variety for food processing."},
+    "Yellow Sorghum": {"desc": "Yellow grain sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Used for brewing and animal feed."},
+    "Sorghum": {"desc": "General sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Versatile grain for food and industry."},
     "Millet": {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
     "Groundnut gargaja": {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty."},
     "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
@@ -52,6 +55,10 @@ def normalize_commodity_for_display(name):
         return "Red Sorghum"
     elif "sorghum" in name_lower and "white" in name_lower:
         return "White Sorghum"
+    elif "sorghum" in name_lower and "yellow" in name_lower:
+        return "Yellow Sorghum"
+    elif name_lower == "sorghum":
+        return "Sorghum"
     elif "soya" in name_lower or "soy" in name_lower:
         return "Soya Beans"
     elif "honey" in name_lower:
@@ -79,6 +86,9 @@ def convert_display_to_api_format(display_name):
         "White Cowpea": "Cowpea White",
         "White Maize": "Maize White",
         "Red Sorghum": "Sorghum Red",
+        "White Sorghum": "Sorghum White",
+        "Yellow Sorghum": "Sorghum Yellow",
+        "Sorghum": "Sorghum",
         "Soya Beans": "Soya Beans",
         "Honey beans": "Honey beans",
         "Rice Paddy": "Rice Paddy",
