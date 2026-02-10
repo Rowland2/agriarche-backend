@@ -746,6 +746,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
+        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
