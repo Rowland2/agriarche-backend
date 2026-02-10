@@ -20,7 +20,7 @@ from reportlab.platypus import Flowable
 PRIMARY_COLOR = "#1F7A3F" 
 ACCENT_COLOR = "#F4B266"  
 BG_COLOR = "#F5F7FA"
-LOGO_PATH = "assets/logo.PNG"  # Optional: add your logo
+LOGO_PATH = "assets/logo.png"  # Optional: add your logo
 
 COMMODITY_INFO = {
     "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
@@ -50,6 +50,8 @@ def normalize_commodity_for_display(name):
         return "White Maize"
     elif "sorghum" in name_lower and "red" in name_lower:
         return "Red Sorghum"
+    elif "sorghum" in name_lower and "white" in name_lower:
+        return "White Sorghum"
     elif "soya" in name_lower or "soy" in name_lower:
         return "Soya Beans"
     elif "honey" in name_lower:
@@ -284,14 +286,32 @@ api_commodity_name = convert_display_to_api_format(commodity_raw)
 # =====================================================
 # 6. MAIN CONTENT (CHART & KPIs)
 # =====================================================
-# Display logo at top if it exists
-import os
-if os.path.exists(LOGO_PATH):
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image(LOGO_PATH, use_container_width=True)
-else:
-    st.markdown("<div style='text-align: center; padding: 20px;'><h1 style='color: #1F7A3F;'>🌾 AGRIARCHE</h1></div>", unsafe_allow_html=True)
+# Display logo at top
+try:
+    import os
+    # Try to load logo - handle both local and deployed environments
+    if os.path.exists(LOGO_PATH):
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.image(LOGO_PATH, use_container_width=True)
+    else:
+        # Fallback: Show Agriarche text logo
+        st.markdown("""
+            <div style='text-align: center; padding: 20px;'>
+                <h1 style='color: #1F7A3F; font-size: 48px; font-weight: bold; margin: 0;'>
+                    🌾 AGRIARCHE
+                </h1>
+            </div>
+        """, unsafe_allow_html=True)
+except Exception as e:
+    # If any error loading logo, show text fallback
+    st.markdown("""
+        <div style='text-align: center; padding: 20px;'>
+            <h1 style='color: #1F7A3F; font-size: 48px; font-weight: bold; margin: 0;'>
+                🌾 AGRIARCHE
+            </h1>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
@@ -328,7 +348,8 @@ try:
                 xaxis=dict(
                     title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
                     tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee",
+                    dtick=1  # Force whole number intervals (1, 2, 3, not 1.2, 1.4)
                 ),
                 yaxis=dict(
                     title=dict(text=f"<b>Price (₦)</b>", font=dict(size=16, color="black")),
@@ -514,19 +535,21 @@ try:
                 # =====================================================
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("📊 Market Comparison")
-                st.write(f"Compare {display_name} prices across different markets")
+                st.write(f"Compare {display_name} prices across different markets for {month_sel}")
                 
-                # Get list of markets with data for this commodity
-                available_markets = sorted(strategy_df['market'].unique().tolist())
+                # Show which markets have data for this commodity
+                markets_with_data = sorted(strategy_df['market'].unique().tolist())
                 
-                if len(available_markets) >= 2:
+                if len(markets_with_data) >= 2:
+                    st.info(f"📍 Markets with {display_name} data in {month_sel}: {', '.join(markets_with_data)}")
+                    
                     col_comp1, col_comp2 = st.columns(2)
                     
                     with col_comp1:
-                        market_a = st.selectbox("Select First Market", available_markets, key="comp_market_a")
+                        market_a = st.selectbox("Select First Market", markets_with_data, key="comp_market_a")
                     
                     with col_comp2:
-                        remaining_markets = [m for m in available_markets if m != market_a]
+                        remaining_markets = [m for m in markets_with_data if m != market_a]
                         market_b = st.selectbox("Select Second Market", remaining_markets, key="comp_market_b")
                     
                     # Calculate prices for both markets
@@ -722,7 +745,7 @@ except Exception as e:
 st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p><strong>Kasuwa Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
+        <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
+        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
