@@ -275,7 +275,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # =====================================================
 # 5. SIDEBAR
 # =====================================================
-st.sidebar.title("Market Filters")
+st.sidebar.title("Kauwa Internal Market Filter")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
@@ -404,7 +404,7 @@ except Exception as e:
 # 7. STANDALONE DATA ARCHIVE TABLE
 # =====================================================
 st.markdown("---")
-st.subheader("📚 Complete Price Data Archive")
+st.subheader("📚 Complete Kauwa Internal Market Data Archive")
 st.write("Search through all price records regardless of sidebar filters.")
 
 try:
