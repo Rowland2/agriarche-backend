@@ -29,7 +29,7 @@ COMMODITY_INFO = {
     "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
     "White Maize": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
     "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
-    "Rice processed": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
+    "Processed Rice": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
     "Red Sorghum": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
     "White Sorghum": {"desc": "Drought-resistant white grain variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Premium variety for food processing."},
     "Yellow Sorghum": {"desc": "Yellow grain sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Used for brewing and animal feed."},
@@ -66,7 +66,7 @@ def normalize_commodity_for_display(name):
     elif "rice" in name_lower and "paddy" in name_lower:
         return "Rice Paddy"
     elif "rice" in name_lower and "process" in name_lower:
-        return "Rice processed"
+        return "Processed Rice"
     elif "millet" in name_lower:
         return "Millet"
     elif "groundnut" in name_lower and "gargaja" in name_lower:
@@ -92,7 +92,7 @@ def convert_display_to_api_format(display_name):
         "Soya Beans": "Soya Beans",
         "Honey beans": "Honey beans",
         "Rice Paddy": "Rice Paddy",
-        "Rice processed": "Rice processed",
+        "Processed Rice": "Rice processed",
         "Millet": "Millet",
         "Groundnut gargaja": "Groundnut gargaja",
         "Groundnut kampala": "Groundnut kampala"
@@ -275,7 +275,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # =====================================================
 # 5. SIDEBAR
 # =====================================================
-st.sidebar.title("Kauwa Internal Market Filter")
+st.sidebar.title("Market Filters")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
@@ -395,6 +395,58 @@ try:
                     </p>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # =====================================================
+            # STRATEGIC SOURCING - MOVED HERE (after Commodity Intelligence)
+            # =====================================================
+            # Get full month data for strategic sourcing
+            try:
+                all_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+                if all_response.status_code == 200:
+                    all_data = pd.DataFrame(all_response.json())
+                    all_data['start_time'] = pd.to_datetime(all_data['start_time'])
+                    all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
+                    all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
+                    all_data['price_per_bag'] = pd.to_numeric(all_data['price_per_bag'], errors='coerce')
+                    
+                    # Filter for selected month and commodity
+                    report_data = all_data[all_data['month_name'] == month_sel].copy()
+                    strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy()
+                    
+                    if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
+                        # Use the same target_col as selected in sidebar (price_per_kg or price_per_bag)
+                        strategy_df[target_col] = pd.to_numeric(strategy_df[target_col], errors='coerce')
+                        m_ranks = strategy_df.groupby("market")[target_col].mean().sort_values()
+                        best_m = m_ranks.index[0]
+                        best_p = m_ranks.iloc[0]
+                        worst_m = m_ranks.index[-1]
+                        worst_p = m_ranks.iloc[-1]
+                        
+                        # Display unit based on selection
+                        unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
+                        
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.subheader(f"🎯 Strategic Sourcing: {display_name}")
+                        scol1, scol2 = st.columns(2)
+                        with scol1:
+                            st.markdown(f"""
+                                <div class="strategy-card best-buy">
+                                    <div style="font-size: 14px; opacity: 0.9;">CHEAPEST MARKET (BEST TO BUY)</div>
+                                    <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{best_m}</div>
+                                    <div style="font-size: 20px;">₦{best_p:,.2f} <small>({unit_label})</small></div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        with scol2:
+                            st.markdown(f"""
+                                <div class="strategy-card worst-buy">
+                                    <div style="font-size: 14px; opacity: 0.9;">HIGHEST PRICE MARKET (AVOID)</div>
+                                    <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{worst_m}</div>
+                                    <div style="font-size: 20px;">₦{worst_p:,.2f} <small>({unit_label})</small></div>
+                                </div>
+                            """, unsafe_allow_html=True)
+            except Exception as e:
+                pass  # Strategic sourcing not critical, continue if fails
+        
         else:
             st.warning(f"No chart data found for {display_name} in {month_sel}.")
 except Exception as e:
@@ -404,7 +456,7 @@ except Exception as e:
 # 7. STANDALONE DATA ARCHIVE TABLE
 # =====================================================
 st.markdown("---")
-st.subheader("📚 Complete Kauwa Internal Market Data Archive")
+st.subheader("📚 Complete Price Data Archive")
 st.write("Search through all price records regardless of sidebar filters.")
 
 try:
@@ -417,19 +469,35 @@ try:
             hist_search = st.text_input("🔍 Search Price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
             
             # Formatting and cleaning columns
-            df_hist["Date"] = pd.to_datetime(df_hist["start_time"]).dt.strftime('%Y-%m-%d')
+            df_hist["Date"] = pd.to_datetime(df_hist["start_time"])
             df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
             df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
             
             # Apply commodity name normalization (Color First format)
             df_hist["commodity"] = df_hist["commodity"].apply(normalize_commodity_for_display)
+            
+            # Sort by date, commodity, and market to calculate price changes
+            df_hist = df_hist.sort_values(['commodity', 'market', 'Date'])
+            
+            # Calculate Old Price (previous price for same commodity + market)
+            df_hist['Old Price (₦)'] = df_hist.groupby(['commodity', 'market'])['Price per Kg (₦)'].shift(1)
+            
+            # Calculate % Change
+            df_hist['% Change'] = ((df_hist['Price per Kg (₦)'] - df_hist['Old Price (₦)']) / df_hist['Old Price (₦)'] * 100).round(2)
+            
+            # Format date for display
+            df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
-            # Selecting columns to display
-            display_cols = ["Date", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)"]
+            # Selecting columns to display - COMPACT VIEW
+            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Price per Kg (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
-            # Renaming for professional look
-            hist_display = hist_display.rename(columns={"commodity": "Commodity", "market": "Market"})
+            # Rename for display
+            hist_display = hist_display.rename(columns={
+                "Date_Display": "Date",
+                "commodity": "Commodity", 
+                "market": "Market"
+            })
 
             # Apply Search Filter
             if hist_search:
@@ -439,11 +507,13 @@ try:
             # Display sorted by newest date first
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
+                    "Old Price (₦)": lambda x: f"{x:,.2f}" if pd.notna(x) else "—",
                     "Price per Kg (₦)": "{:,.2f}",
-                    "Price per Bag (₦)": "{:,.0f}"
+                    "% Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "—"
                 }),
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                height=400
             )
         else:
             st.info("No records available in the database archive.")
@@ -495,27 +565,8 @@ try:
                 
                 # Display unit based on selection
                 unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
-                
-                st.subheader(f"🎯 Strategic Sourcing: {display_name}")
-                scol1, scol2 = st.columns(2)
-                with scol1:
-                    st.markdown(f"""
-                        <div class="strategy-card best-buy">
-                            <div style="font-size: 14px; opacity: 0.9;">CHEAPEST MARKET (BEST TO BUY)</div>
-                            <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{best_m}</div>
-                            <div style="font-size: 20px;">₦{best_p:,.2f} <small>({unit_label})</small></div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                with scol2:
-                    st.markdown(f"""
-                        <div class="strategy-card worst-buy">
-                            <div style="font-size: 14px; opacity: 0.9;">HIGHEST PRICE MARKET (AVOID)</div>
-                            <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{worst_m}</div>
-                            <div style="font-size: 20px;">₦{worst_p:,.2f} <small>({unit_label})</small></div>
-                        </div>
-                    """, unsafe_allow_html=True)
 
-                # AI MARKET ADVISOR
+                # AI MARKET ADVISOR (without repeating Strategic Sourcing cards)
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("🤖 AI Market Advisor")
                 
@@ -756,6 +807,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
+        <p style='font-size: 0.9em;'> Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
