@@ -587,12 +587,12 @@ try:
             
             with nav_col1:
                 if pagination.get('has_previous', False):
-                    if st.button("⬅️ Previous", key="archive_prev"):
+                    if st.button(" Previous", key="archive_prev"):
                         st.rerun()
             
             with nav_col3:
                 if pagination.get('has_next', False):
-                    if st.button("Next ➡️", key="archive_next"):
+                    if st.button("Next ", key="archive_next"):
                         st.rerun()
         else:
             st.info("No records available in the database archive.")
@@ -741,12 +741,12 @@ try:
                             
                             with col_prev:
                                 if pagination.get('has_previous', False):
-                                    if st.button("⬅️ Previous Page", key="gap_prev"):
+                                    if st.button(" Previous Page", key="gap_prev"):
                                         st.rerun()
                             
                             with col_next:
                                 if pagination.get('has_next', False):
-                                    if st.button("Next Page ➡️", key="gap_next"):
+                                    if st.button("Next Page ", key="gap_next"):
                                         st.rerun()
                         else:
                             st.info(f"No gap analysis data available for {month_sel}")
@@ -844,7 +844,7 @@ st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sour
 
 try:
     # Pagination controls for Other Sources (add at top of section)
-    st.markdown("### Pagination")
+    #st.markdown("### Pagination")
     os_col1, os_col2 = st.columns(2)
     
     with os_col1:
@@ -999,12 +999,12 @@ try:
                 
                 with os_nav_col1:
                     if os_pagination.get('has_previous', False):
-                        if st.button("⬅️ Previous", key="os_prev"):
+                        if st.button(" Previous", key="os_prev"):
                             st.rerun()
                 
                 with os_nav_col3:
                     if os_pagination.get('has_next', False):
-                        if st.button("Next ➡️", key="os_next"):
+                        if st.button("Next ", key="os_next"):
                             st.rerun()
             else:
                 st.warning("⚠️ No data matches your filter criteria.")
