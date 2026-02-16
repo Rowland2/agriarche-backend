@@ -441,9 +441,16 @@ try:
             # =====================================================
             # Get full month data for strategic sourcing
             try:
-                all_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+                all_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
                 if all_response.status_code == 200:
-                    all_data = pd.DataFrame(all_response.json())
+                    response_data = all_response.json()
+                    
+                    # Handle paginated response
+                    if isinstance(response_data, dict) and 'data' in response_data:
+                        all_data = pd.DataFrame(response_data['data'])
+                    else:
+                        all_data = pd.DataFrame(response_data)
+                    
                     all_data['start_time'] = pd.to_datetime(all_data['start_time'])
                     all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
                     all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
@@ -496,7 +503,7 @@ except Exception as e:
 # 7. STANDALONE DATA ARCHIVE TABLE (WITH PAGINATION)
 # =====================================================
 st.markdown("---")
-st.subheader("📚  Internal Market Price Data Archive")
+st.subheader("📚 Internal Market Price Data Archive")
 
 try:
     # Pagination controls
@@ -600,9 +607,17 @@ st.header(f"📋 Monthly Intelligence Report: {month_sel}")
 
 # Fetch month-specific data for PDF and analysis
 try:
-    month_response = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+    # Get ALL data for monthly report (use large page size)
+    month_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
     if month_response.status_code == 200:
-        all_data = pd.DataFrame(month_response.json())
+        response_data = month_response.json()
+        
+        # Handle paginated response
+        if isinstance(response_data, dict) and 'data' in response_data:
+            all_data = pd.DataFrame(response_data['data'])
+        else:
+            all_data = pd.DataFrame(response_data)
+        
         all_data['start_time'] = pd.to_datetime(all_data['start_time'])
         all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
         all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
@@ -848,10 +863,28 @@ try:
     
     if os_response.status_code == 200:
         os_result = os_response.json()
-        os_data_raw = os_result.get('data', [])
-        os_pagination = os_result.get('pagination', {})
         
-        if os_data_raw:
+        # Handle both paginated and non-paginated responses
+        if isinstance(os_result, dict) and 'data' in os_result:
+            # Paginated response
+            os_data_raw = os_result.get('data', [])
+            os_pagination = os_result.get('pagination', {})
+        elif isinstance(os_result, list):
+            # Non-paginated response (old format)
+            os_data_raw = os_result
+            os_pagination = {
+                "page": 1,
+                "page_size": len(os_result),
+                "total_records": len(os_result),
+                "total_pages": 1,
+                "has_next": False,
+                "has_previous": False
+            }
+        else:
+            os_data_raw = []
+            os_pagination = {}
+        
+        if os_data_raw and len(os_data_raw) > 0:
             os_data = pd.DataFrame(os_data_raw)
             
             # Data processing
@@ -973,9 +1006,24 @@ try:
             else:
                 st.warning("No data matches your filter criteria.")
         else:
-            st.info("📭 No other sources data available yet. Upload your scraped data using the upload script.")
+            st.info("📭 **No Other Sources data available yet.**")
+            st.write("""
+            **To add data to this section:**
+            1. Use the `upload_other_sources_smart.py` script to upload scraped market data
+            2. Or use the API endpoint: `POST /bulk-upload-other-sources`
+            
+            **Expected data format:**
+            - date
+            - commodity  
+            - location (market name)
+            - unit
+            - price
+            
+            Once you upload data, it will appear here automatically!
+            """)
     else:
-        st.error(f"Could not fetch other sources data. API Status: {os_response.status_code}")
+        st.error(f"❌ Failed to fetch Other Sources data. API Status: {os_response.status_code}")
+        st.write("Please check if the backend API is running correctly.")
         
 except Exception as e:
     st.error(f"Other Sources Error: {e}")
