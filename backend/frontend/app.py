@@ -275,7 +275,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 # =====================================================
 # 5. SIDEBAR
 # =====================================================
-st.sidebar.title("Market Filters")
+st.sidebar.title("Internal Market Price Filters")
 commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
 month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
@@ -456,8 +456,8 @@ except Exception as e:
 # 7. STANDALONE DATA ARCHIVE TABLE
 # =====================================================
 st.markdown("---")
-st.subheader("📚 Complete Price Data Archive")
-st.write("Search through all price records regardless of sidebar filters.")
+st.subheader("📚 Internal Market Price Data Archive")
+# st.write("Search through all price records regardless of sidebar filters.")
 
 try:
     full_res = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
@@ -489,7 +489,7 @@ try:
             df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
             # Selecting columns to display - COMPACT VIEW
-            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Price per Kg (₦)", "% Change"]
+            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Current Price per Kg (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
             # Rename for display
@@ -675,7 +675,7 @@ except Exception as e:
 # 10. OTHER SOURCES COMMODITY PRICES (MOVED TO END)
 # =====================================================
 st.markdown("---")
-st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Other sources Commodity Prices</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sourced Market Prices</h1>", unsafe_allow_html=True)
 
 try:
     # Fetch other sources data
@@ -695,7 +695,7 @@ try:
             
             # INDEPENDENT SIDEBAR FILTERS FOR OTHER SOURCES
             st.sidebar.markdown("---")
-            st.sidebar.markdown("### 🌐 Other sources Controls")
+            st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
             # Independent Commodity filter for Other sources
             os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
