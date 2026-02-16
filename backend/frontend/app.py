@@ -926,8 +926,11 @@ try:
             filtered_os = os_data.copy()
             
             # Filter by selected years from MAIN sidebar (Year filter is shared)
-            if selected_years:
-                filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
+            # Only filter if years are selected and data has years
+            if 'selected_years' in locals() and selected_years and len(selected_years) > 0:
+                # Only filter if the year column exists and has valid data
+                if 'year' in filtered_os.columns and not filtered_os['year'].isna().all():
+                    filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
             
             # Apply Other sources specific filters
             if selected_os_comm != "All":
@@ -1004,7 +1007,20 @@ try:
                         if st.button("Next ➡️", key="os_next"):
                             st.rerun()
             else:
-                st.warning("No data matches your filter criteria.")
+                st.warning("⚠️ No data matches your filter criteria.")
+                
+                # Show helpful debugging info
+                if 'selected_years' in locals() and selected_years:
+                    available_years = sorted(os_data['year'].unique().tolist()) if 'year' in os_data.columns else []
+                    st.info(f"""
+                    **Filter Issue:**
+                    - Years selected in sidebar: {', '.join(selected_years)}
+                    - Years available in Other Sources data: {', '.join(available_years)}
+                    
+                    **Tip:** Adjust the Year filter in the main sidebar to match your data.
+                    """)
+                else:
+                    st.info("Try changing the filters in the sidebar (Commodity, Market, Month, Year).")
         else:
             st.info("📭 **No Other Sources data available yet.**")
             st.write("""
