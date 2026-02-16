@@ -273,17 +273,57 @@ BASE_URL = "https://agriarche-backend.onrender.com"
 HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
 # =====================================================
-# 5. SIDEBAR
+# 5. SIDEBAR (WITH DYNAMIC FILTERS FROM BACKEND)
 # =====================================================
-st.sidebar.title("Internal Market Price Filters")
-commodity_raw = st.sidebar.selectbox("Select Commodity", HARDCODED_COMMODITIES)
-market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + HARDCODED_MARKETS)
-month_sel = st.sidebar.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", 
-                                                   "July", "August", "September", "October", "November", "December"])
 
-# Add Year filter to main sidebar (moved from Other sources)
-years_list = ["2024", "2025", "2026"]
-selected_years = st.sidebar.multiselect("Year", years_list, default=["2026"], key="main_years")
+st.sidebar.title("Internal Market Price Filters")
+
+# Fetch filter options from backend (cached for performance)
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def fetch_filter_options():
+    """Fetch all filter options from backend"""
+    try:
+        response = requests.get(f"{BASE_URL}/filters/all", headers=HEADERS, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            # Fallback to hardcoded if API fails
+            return {
+                "commodities": HARDCODED_COMMODITIES,
+                "markets": HARDCODED_MARKETS,
+                "states": ["Kaduna", "Kano", "Lagos"],
+                "years": ["2024", "2025", "2026"],
+                "months": ["January", "February", "March", "April", "May", "June", 
+                          "July", "August", "September", "October", "November", "December"]
+            }
+    except Exception as e:
+        # Fallback to hardcoded if network error
+        print(f"Failed to fetch filters from backend: {e}")
+        return {
+            "commodities": HARDCODED_COMMODITIES,
+            "markets": HARDCODED_MARKETS,
+            "states": ["Kaduna", "Kano", "Lagos"],
+            "years": ["2024", "2025", "2026"],
+            "months": ["January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November", "December"]
+        }
+
+# Get filter options from backend
+filter_options = fetch_filter_options()
+
+# Normalize commodity names for display (Color First)
+commodities_display = [normalize_commodity_for_display(c) for c in filter_options['commodities']]
+commodities_display = sorted(list(set(commodities_display)))  # Remove duplicates and sort
+
+# Sidebar dropdowns (now using backend data!)
+commodity_raw = st.sidebar.selectbox("Select Commodity", commodities_display)
+market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + filter_options['markets'])
+month_sel = st.sidebar.selectbox("Select Month", filter_options['months'])
+
+# Year filter - use backend data with fallback
+years_list = filter_options.get('years', ["2024", "2025", "2026"])
+default_year = years_list[0] if years_list else "2026"
+selected_years = st.sidebar.multiselect("Year", years_list, default=[default_year], key="main_years")
 
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
@@ -453,20 +493,39 @@ except Exception as e:
     st.error(f"Chart Error: {e}")
 
 # =====================================================
-# 7. STANDALONE DATA ARCHIVE TABLE
+# 7. STANDALONE DATA ARCHIVE TABLE (WITH PAGINATION)
 # =====================================================
 st.markdown("---")
-st.subheader("📚 Internal Market Price Data Archive")
-#st.write("Search through all price records regardless of sidebar filters.")
+st.subheader("📚  Internal Market Price Data Archive")
 
 try:
-    full_res = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
+    # Pagination controls
+    archive_col1, archive_col2, archive_col3 = st.columns([2, 2, 3])
+    
+    with archive_col1:
+        archive_page = st.number_input("Page", min_value=1, value=1, step=1, key="archive_page")
+    
+    with archive_col2:
+        archive_page_size = st.selectbox("Records per page", [50, 100, 200, 500], index=1, key="archive_page_size")
+    
+    with archive_col3:
+        hist_search = st.text_input("🔍 Search", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
+    
+    # Build query params
+    params = {
+        "page": archive_page,
+        "page_size": archive_page_size
+    }
+    
+    full_res = requests.get(f"{BASE_URL}/prices", params=params, headers=HEADERS, timeout=15)
+    
     if full_res.status_code == 200:
-        all_raw_data = full_res.json()
+        result = full_res.json()
+        all_raw_data = result.get('data', [])
+        pagination = result.get('pagination', {})
         
         if all_raw_data:
             df_hist = pd.DataFrame(all_raw_data)
-            hist_search = st.text_input("🔍 Search Price Records", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
             
             # Formatting and cleaning columns
             df_hist["Date"] = pd.to_datetime(df_hist["start_time"])
@@ -479,28 +538,25 @@ try:
             # Sort by date, commodity, and market to calculate price changes
             df_hist = df_hist.sort_values(['commodity', 'market', 'Date'])
             
-            # Calculate Old Price (previous price for same commodity + market)
-            df_hist['Old Price (₦)'] = df_hist.groupby(['commodity', 'market'])['Price per Kg (₦)'].shift(1)
-            
-            # Calculate % Change
-            df_hist['% Change'] = ((df_hist['Price per Kg (₦)'] - df_hist['Old Price (₦)']) / df_hist['Old Price (₦)'] * 100).round(2)
+            # Calculate price change (% change from previous record)
+            df_hist['Previous Price (₦)'] = df_hist.groupby(['commodity', 'market'])['Price per Kg (₦)'].shift(1)
+            df_hist['% Change'] = ((df_hist['Price per Kg (₦)'] - df_hist['Previous Price (₦)']) / df_hist['Previous Price (₦)'] * 100).round(2)
             
             # Format date for display
             df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
-            # Selecting columns to display - COMPACT VIEW
-            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Price per Kg (₦)", "% Change"]
+            # Selecting columns to display - With Price per Bag AND % Change
+            display_cols = ["Date_Display", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
             # Rename for display
             hist_display = hist_display.rename(columns={
                 "Date_Display": "Date",
                 "commodity": "Commodity", 
-                "market": "Market",
-                "Price per Kg (₦)": "Current Price per Kg (₦)"
+                "market": "Market"
             })
 
-            # Apply Search Filter
+            # Apply Search Filter (client-side on current page)
             if hist_search:
                 mask = hist_display.apply(lambda row: row.astype(str).str.contains(hist_search, case=False).any(), axis=1)
                 hist_display = hist_display[mask]
@@ -508,14 +564,29 @@ try:
             # Display sorted by newest date first
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
-                    "Old Price (₦)": lambda x: f"{x:,.2f}" if pd.notna(x) else "—",
-                    "Current Price per Kg (₦)": "{:,.2f}",
+                    "Price per Kg (₦)": "{:,.2f}",
+                    "Price per Bag (₦)": "{:,.0f}",
                     "% Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "—"
                 }),
                 use_container_width=True,
                 hide_index=True,
                 height=400
             )
+            
+            # Pagination info and navigation
+            st.caption(f"Showing page {pagination.get('page', 1)} of {pagination.get('total_pages', 1)} | Total records: {pagination.get('total_records', 0):,}")
+            
+            nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+            
+            with nav_col1:
+                if pagination.get('has_previous', False):
+                    if st.button("⬅️ Previous", key="archive_prev"):
+                        st.rerun()
+            
+            with nav_col3:
+                if pagination.get('has_next', False):
+                    if st.button("Next ➡️", key="archive_next"):
+                        st.rerun()
         else:
             st.info("No records available in the database archive.")
 except Exception as e:
@@ -581,7 +652,7 @@ try:
                     advice = f"✅ **Optimal Buy Window:** Prices for {display_name} in {month_sel} are {((annual_avg-avg_val)/annual_avg)*100:.1f}% below the annual average. Strong window for inventory stocking."
                     bg_adv = "#E8F5E9"
                 else:
-                    advice = f"ℹ️ **Market Stability:** {display_name} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best margins."
+                    advice = f"ℹ️ **Market Stability:** {display_name} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best prices."
                     bg_adv = "#E3F2FD"
 
                 st.markdown(f"""
@@ -591,6 +662,84 @@ try:
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # =====================================================
+                # DETAILED GAP ANALYSIS TABLE (WITH PAGINATION)
+                # =====================================================
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader(f"📊 Detailed Gap Analysis: {month_sel}")
+                
+                try:
+                    # Pagination controls
+                    gap_page = st.number_input("Page", min_value=1, value=1, step=1, key="gap_page")
+                    gap_page_size = st.selectbox("Records per page", [10, 20, 50, 100], index=1, key="gap_page_size")
+                    
+                    gap_response = requests.get(
+                        f"{BASE_URL}/gap-analysis", 
+                        params={
+                            "month": month_sel,
+                            "page": gap_page,
+                            "page_size": gap_page_size
+                        }, 
+                        headers=HEADERS, 
+                        timeout=15
+                    )
+                    
+                    if gap_response.status_code == 200:
+                        gap_result = gap_response.json()
+                        gap_data = gap_result.get('data', [])
+                        pagination = gap_result.get('pagination', {})
+                        
+                        if gap_data:
+                            # Convert to DataFrame
+                            gap_df = pd.DataFrame(gap_data)
+                            
+                            # Normalize commodity names for display
+                            gap_df['commodity'] = gap_df['commodity'].apply(normalize_commodity_for_display)
+                            
+                            # Rename columns for display
+                            gap_display = gap_df.rename(columns={
+                                'commodity': 'Commodity',
+                                'min_price': 'Min Price',
+                                'max_price': 'Max Price',
+                                'avg_price': 'Avg Price',
+                                'cheapest_source': 'Cheapest Source',
+                                'top_selling_market': 'Top Selling Market'
+                            })
+                            
+                            # Display table
+                            st.dataframe(
+                                gap_display.style.format({
+                                    'Min Price': '₦{:,.2f}',
+                                    'Max Price': '₦{:,.2f}',
+                                    'Avg Price': '₦{:,.2f}'
+                                }),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                            
+                            # Pagination info
+                            st.caption(f"Showing page {pagination.get('page', 1)} of {pagination.get('total_pages', 1)} | Total records: {pagination.get('total_records', 0)}")
+                            
+                            # Navigation buttons
+                            col_prev, col_next = st.columns(2)
+                            
+                            with col_prev:
+                                if pagination.get('has_previous', False):
+                                    if st.button("⬅️ Previous Page", key="gap_prev"):
+                                        st.rerun()
+                            
+                            with col_next:
+                                if pagination.get('has_next', False):
+                                    if st.button("Next Page ➡️", key="gap_next"):
+                                        st.rerun()
+                        else:
+                            st.info(f"No gap analysis data available for {month_sel}")
+                    else:
+                        st.warning("Gap analysis temporarily unavailable")
+                
+                except Exception as e:
+                    st.warning(f"Gap analysis: {str(e)}")
                 
                 # =====================================================
                 # MARKET COMPARISON SECTION
@@ -679,11 +828,28 @@ st.markdown("---")
 st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sourced Market Prices</h1>", unsafe_allow_html=True)
 
 try:
-    # Fetch other sources data
-    os_response = requests.get(f"{BASE_URL}/other-sources", headers=HEADERS)
+    # Pagination controls for Other Sources (add at top of section)
+    st.markdown("### Pagination")
+    os_col1, os_col2 = st.columns(2)
+    
+    with os_col1:
+        os_page = st.number_input("Page", min_value=1, value=1, step=1, key="os_page")
+    
+    with os_col2:
+        os_page_size = st.selectbox("Records per page", [100, 200, 500, 1000], index=0, key="os_page_size")
+    
+    # Fetch other sources data with pagination
+    os_response = requests.get(
+        f"{BASE_URL}/other-sources", 
+        params={"page": os_page, "page_size": os_page_size},
+        headers=HEADERS,
+        timeout=15
+    )
     
     if os_response.status_code == 200:
-        os_data_raw = os_response.json()
+        os_result = os_response.json()
+        os_data_raw = os_result.get('data', [])
+        os_pagination = os_result.get('pagination', {})
         
         if os_data_raw:
             os_data = pd.DataFrame(os_data_raw)
@@ -696,7 +862,7 @@ try:
             
             # INDEPENDENT SIDEBAR FILTERS FOR OTHER SOURCES
             st.sidebar.markdown("---")
-            st.sidebar.markdown("### 🌐 Externally Sourced Market Controls Controls")
+            st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
             # Independent Commodity filter for Other sources
             os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
@@ -783,14 +949,27 @@ try:
                     height=600
                 )
                 
-                # Show record count with better visibility
+                # Show record count with pagination info
                 st.markdown(f"""
                     <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: center;">
                         <p style="color: #1F7A3F; font-size: 18px; font-weight: bold; margin: 0;">
-                            📊 Showing {len(display_df):,} records from  Externally Sourced Market
+                            📊 Showing {len(display_df):,} records (Page {os_pagination.get('page', 1)} of {os_pagination.get('total_pages', 1)} | Total: {os_pagination.get('total_records', 0):,})
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # Pagination navigation
+                os_nav_col1, os_nav_col2, os_nav_col3 = st.columns([1, 1, 1])
+                
+                with os_nav_col1:
+                    if os_pagination.get('has_previous', False):
+                        if st.button("⬅️ Previous", key="os_prev"):
+                            st.rerun()
+                
+                with os_nav_col3:
+                    if os_pagination.get('has_next', False):
+                        if st.button("Next ➡️", key="os_next"):
+                            st.rerun()
             else:
                 st.warning("No data matches your filter criteria.")
         else:
