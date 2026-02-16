@@ -787,7 +787,7 @@ try:
                 st.markdown(f"""
                     <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: center;">
                         <p style="color: #1F7A3F; font-size: 18px; font-weight: bold; margin: 0;">
-                            📊 Showing {len(display_df):,} records from Other sources
+                            📊 Showing {len(display_df):,} records from  Externally Sourced Market
                         </p>
                     </div>
                 """, unsafe_allow_html=True)
@@ -808,6 +808,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
+        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
