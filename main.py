@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Security, HTTPException, status, Depends, Body
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.middleware.cors import CORSMiddleware  # ← ADDED THIS
 from sqlalchemy import create_engine, text
 import pandas as pd
 import os
@@ -7,6 +8,44 @@ from typing import List
 from pydantic import BaseModel
 
 app = FastAPI(title="Agriarche Data Hub")
+
+# ============================================================
+# CORS CONFIGURATION - ADDED THIS ENTIRE SECTION
+# ============================================================
+
+# Development origins (localhost for testing)
+origins_dev = [
+    "http://localhost:3000",
+    "http://localhost:5173",  # Vite (your tech team's dev server)
+    "http://localhost:8080",  # Vue
+    "http://localhost:4200",  # Angular
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+# Production origins (your actual websites)
+origins_prod = [
+    "https://agriarche-pricing-pfadctddnsfn2mqob8snwe.streamlit.app",  # Your Streamlit dashboard
+    # Add your company website URLs here when ready:
+    # "https://yourcompany.com",
+    # "https://www.yourcompany.com",
+]
+
+# Combine all allowed origins
+allowed_origins = origins_dev + origins_prod
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,  # Allowed origins
+    allow_credentials=True,  # Allow cookies/auth headers
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
+# ============================================================
+# END OF CORS CONFIGURATION
+# ============================================================
 
 # --- PYDANTIC MODELS ---
 class OtherSourceRecord(BaseModel):
@@ -44,7 +83,8 @@ def home():
     return {
         "status": "Agriarche API is online", 
         "database": "Connected to Neon Cloud",
-        "current_directory": os.getcwd()
+        "current_directory": os.getcwd(),
+        "cors_enabled": True  # ← ADDED THIS
     }
 
 def fetch_data():
