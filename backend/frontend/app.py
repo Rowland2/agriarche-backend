@@ -457,7 +457,7 @@ except Exception as e:
 # =====================================================
 st.markdown("---")
 st.subheader("📚 Internal Market Price Data Archive")
-# st.write("Search through all price records regardless of sidebar filters.")
+#st.write("Search through all price records regardless of sidebar filters.")
 
 try:
     full_res = requests.get(f"{BASE_URL}/prices", headers=HEADERS)
@@ -489,14 +489,15 @@ try:
             df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
             # Selecting columns to display - COMPACT VIEW
-            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Current Price per Kg (₦)", "% Change"]
+            display_cols = ["Date_Display", "commodity", "market", "Old Price (₦)", "Price per Kg (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
             # Rename for display
             hist_display = hist_display.rename(columns={
                 "Date_Display": "Date",
                 "commodity": "Commodity", 
-                "market": "Market"
+                "market": "Market",
+                "Price per Kg (₦)": "Current Price per Kg (₦)"
             })
 
             # Apply Search Filter
@@ -508,7 +509,7 @@ try:
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
                     "Old Price (₦)": lambda x: f"{x:,.2f}" if pd.notna(x) else "—",
-                    "Price per Kg (₦)": "{:,.2f}",
+                    "Current Price per Kg (₦)": "{:,.2f}",
                     "% Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "—"
                 }),
                 use_container_width=True,
@@ -695,7 +696,7 @@ try:
             
             # INDEPENDENT SIDEBAR FILTERS FOR OTHER SOURCES
             st.sidebar.markdown("---")
-            st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
+            st.sidebar.markdown("### 🌐 Externally Sourced Market Controls Controls")
             
             # Independent Commodity filter for Other sources
             os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
@@ -807,6 +808,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'> Real-time commodity pricing data</p>
+        <p style='font-size: 0.9em;'>Built with FastAPI, Streamlit, and PostgreSQL • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
