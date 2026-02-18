@@ -212,28 +212,46 @@ def get_intelligence(commodity: str):
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets"):
     """Analysis endpoint for Kasuwa internal prices"""
-    df = fetch_data() 
+    # Debug: Log what we received
+    print(f"DEBUG: Received commodity='{commodity}', month='{month}', market='{market}'")
+    
+    df = fetch_data()
+    
+    print(f"DEBUG: Total records before filtering: {len(df)}")
     
     # 1. Date Processing
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['month_name'] = df['start_time'].dt.strftime('%B')
     
-    # 2. Filtering
-    df = df[df['commodity'].str.lower() == commodity.lower()]
-    df = df[df['month_name'].str.lower() == month.lower()]
+    # 2. Filtering - Use partial match for commodity (case-insensitive)
+    # First filter by commodity
+    if commodity:  # Make sure commodity is not empty
+        df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        print(f"DEBUG: After commodity filter ({commodity}): {len(df)} records")
     
+    # Then filter by month
+    df = df[df['month_name'].str.lower() == month.lower()]
+    print(f"DEBUG: After month filter ({month}): {len(df)} records")
+    
+    # Then filter by market if specified
     if market != "All Markets":
         df = df[df['market'].str.lower() == market.lower()]
+        print(f"DEBUG: After market filter ({market}): {len(df)} records")
 
     if df.empty:
+        print("DEBUG: No data found after filtering!")
         return {"chart_data": [], "metrics": {"avg": 0, "max": 0, "min": 0}}
 
     # 3. Numeric Safety
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
     df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
+    
+    # Debug: Show unique commodities in result
+    unique_commodities = df['commodity'].unique().tolist()
+    print(f"DEBUG: Unique commodities in result: {unique_commodities}")
 
     return {
-        "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time']].astype(str).to_dict(orient='records'),
+        "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].astype(str).to_dict(orient='records'),
         "metrics": {
             "avg": round(float(df['price_per_kg'].mean()), 2),
             "max": float(df['price_per_kg'].max()),
