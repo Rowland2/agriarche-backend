@@ -26,9 +26,8 @@ origins_dev = [
 # Production origins (your actual websites)
 origins_prod = [
     "https://agriarche-pricing-pfadctddnsfn2mqob8snwe.streamlit.app",  # Your Streamlit dashboard
-    # Add your company website URLs here when ready:
-    # "https://yourcompany.com",
-    # "https://www.yourcompany.com",
+    "https://www.gofarmrate.com",  # Your company website
+    "https://gofarmrate.com",  # Your company website (without www)
 ]
 
 # Combine all allowed origins
@@ -210,10 +209,23 @@ def get_intelligence(commodity: str):
     return {"info": {"desc": desc}}
 
 @app.get("/analysis")
-def full_analysis(commodity: str, month: str, market: str = "All Markets"):
-    """Analysis endpoint for Kasuwa internal prices"""
+def full_analysis(commodity: str, month: str, market: str = "All Markets", exact: bool = False):
+    """
+    Analysis endpoint for Kasuwa internal prices
+    
+    Parameters:
+    - commodity: Commodity to search for
+    - month: Month name (e.g., "January")
+    - market: Market name or "All Markets"
+    - exact: If True, use exact match. If False, use partial match (default)
+    
+    Examples:
+    - /analysis?commodity=Maize&exact=true       → Only "Maize" (exact)
+    - /analysis?commodity=Maize&exact=false      → All Maize varieties (partial)
+    - /analysis?commodity=Maize White&exact=true → Only "Maize White" (exact)
+    """
     # Debug: Log what we received
-    print(f"DEBUG: Received commodity='{commodity}', month='{month}', market='{market}'")
+    print(f"DEBUG: Received commodity='{commodity}', month='{month}', market='{market}', exact={exact}")
     
     df = fetch_data()
     
@@ -223,11 +235,16 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets"):
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['month_name'] = df['start_time'].dt.strftime('%B')
     
-    # 2. Filtering - Use partial match for commodity (case-insensitive)
-    # First filter by commodity
-    if commodity:  # Make sure commodity is not empty
-        df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        print(f"DEBUG: After commodity filter ({commodity}): {len(df)} records")
+    # 2. Filtering by commodity
+    if commodity:
+        if exact:
+            # Exact match - "Maize" only matches "Maize", not "Maize White"
+            df = df[df['commodity'].str.lower() == commodity.lower()]
+            print(f"DEBUG: Using EXACT match for '{commodity}': {len(df)} records")
+        else:
+            # Partial match - "Maize" matches "Maize", "Maize White", etc.
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+            print(f"DEBUG: Using PARTIAL match for '{commodity}': {len(df)} records")
     
     # Then filter by month
     df = df[df['month_name'].str.lower() == month.lower()]
