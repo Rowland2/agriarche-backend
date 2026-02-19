@@ -312,8 +312,19 @@ def fetch_filter_options():
 filter_options = fetch_filter_options()
 
 # Normalize commodity names for display (Color First)
-commodities_display = [normalize_commodity_for_display(c) for c in filter_options['commodities']]
-commodities_display = sorted(list(set(commodities_display)))  # Remove duplicates and sort
+commodities_raw = filter_options['commodities']
+
+# Clean and deduplicate commodities (case-insensitive)
+commodities_cleaned = {}
+for c in commodities_raw:
+    normalized = normalize_commodity_for_display(c)
+    # Use lowercase as key to catch duplicates with different capitalization
+    key = normalized.lower()
+    # Keep the first properly formatted version we see
+    if key not in commodities_cleaned:
+        commodities_cleaned[key] = normalized
+
+commodities_display = sorted(list(commodities_cleaned.values()))
 
 # Sidebar dropdowns (now using backend data!)
 commodity_raw = st.sidebar.selectbox("Select Commodity", commodities_display)
@@ -844,7 +855,7 @@ st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sour
 
 try:
     # Pagination controls for Other Sources (add at top of section)
-    #st.markdown("### Pagination")
+   # st.markdown("### Pagination")
     os_col1, os_col2 = st.columns(2)
     
     with os_col1:
