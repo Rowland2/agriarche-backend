@@ -343,34 +343,32 @@ def verify_data():
         
         if all_data:
             df = pd.DataFrame(all_data)
-                print(f"\n✅ Database has {len(df)} total records")
-                
-                if 'start_time' in df.columns:
-                    df['start_time'] = pd.to_datetime(df['start_time'])
-                    latest_date = df['start_time'].max()
-                    oldest_date = df['start_time'].min()
-                    print(f"📅 Date range: {oldest_date.strftime('%Y-%m-%d')} to {latest_date.strftime('%Y-%m-%d')}")
-                
-                if 'commodity' in df.columns:
-                    print(f"\n📊 Commodities ({df['commodity'].nunique()}):")
-                    for comm in sorted(df['commodity'].unique()[:10]):
-                        count = len(df[df['commodity'] == comm])
-                        print(f"   - {comm}: {count} records")
-                
-                if 'market' in df.columns:
-                    print(f"\n📍 Markets ({df['market'].nunique()}):")
-                    for market in sorted(df['market'].unique()[:10]):
-                        count = len(df[df['market'] == market])
-                        print(f"   - {market}: {count} records")
-                
-                print(f"\n📋 Latest 5 records:")
-                latest = df.sort_values('start_time', ascending=False).head(5)
-                for idx, row in latest.iterrows():
-                    print(f"   {row['start_time']} | {row['commodity']} | {row['market']} | ₦{row['price_per_kg']:.2f}/kg")
-            else:
-                print("\n⚠️  Database is empty")
+            print(f"\n✅ Database has {len(df)} total records")
+            
+            if 'start_time' in df.columns:
+                df['start_time'] = pd.to_datetime(df['start_time'])
+                latest_date = df['start_time'].max()
+                oldest_date = df['start_time'].min()
+                print(f"📅 Date range: {oldest_date.strftime('%Y-%m-%d')} to {latest_date.strftime('%Y-%m-%d')}")
+            
+            if 'commodity' in df.columns:
+                print(f"\n📊 Commodities ({df['commodity'].nunique()}):")
+                for comm in sorted(df['commodity'].unique()[:10]):
+                    count = len(df[df['commodity'] == comm])
+                    print(f"   - {comm}: {count} records")
+            
+            if 'market' in df.columns:
+                print(f"\n📍 Markets ({df['market'].nunique()}):")
+                for market in sorted(df['market'].unique()[:10]):
+                    count = len(df[df['market'] == market])
+                    print(f"   - {market}: {count} records")
+            
+            print(f"\n📋 Latest 5 records:")
+            latest = df.sort_values('start_time', ascending=False).head(5)
+            for idx, row in latest.iterrows():
+                print(f"   {row['start_time']} | {row['commodity']} | {row['market']} | ₦{row['price_per_kg']:.2f}/kg")
         else:
-            print(f"\n❌ Error: {response.status_code}")
+            print("\n⚠️  Database is empty")
     
     except Exception as e:
         print(f"\n❌ Error: {e}")
