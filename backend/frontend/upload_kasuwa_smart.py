@@ -127,9 +127,44 @@ def upload_new_records_only(excel_file_path):
     # Fetch existing data from database
     print("\n🔍 Checking database for existing records...")
     try:
-        response = requests.get(f"{API_URL}/prices", headers=HEADERS)
-        if response.status_code == 200:
-            existing_data = pd.DataFrame(response.json())
+        # Fetch all existing records (use pagination)
+        all_existing_data = []
+        page = 1
+        
+        while True:
+            response = requests.get(
+                f"{API_URL}/prices",
+                params={"page": page, "page_size": 1000},
+                headers=HEADERS
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Handle paginated response
+                if isinstance(result, dict) and 'data' in result:
+                    data = result['data']
+                    pagination = result.get('pagination', {})
+                    
+                    all_existing_data.extend(data)
+                    
+                    # Check if there are more pages
+                    if not pagination.get('has_next', False):
+                        break
+                    
+                    page += 1
+                elif isinstance(result, list):
+                    # Old format (non-paginated)
+                    all_existing_data = result
+                    break
+                else:
+                    break
+            else:
+                print(f"⚠️  API returned status {response.status_code}")
+                break
+        
+        if all_existing_data:
+            existing_data = pd.DataFrame(all_existing_data)
             
             if not existing_data.empty:
                 existing_data['start_time'] = pd.to_datetime(existing_data['start_time'], errors='coerce')
@@ -194,17 +229,17 @@ def upload_new_records_only(excel_file_path):
     
     for idx, row in df.iterrows():
         record = {
-    "start_time": str(row['start_time'].strftime('%Y-%m-%d %H:%M:%S')),
-    "agent_code": str(row['agent_code']),
-    "state": str(row['state']),
-    "market": str(row['market']),
-    "commodity": str(row['commodity']),
-    "price_per_bag": float(row['price_per_bag']),
-    "weight_of_bag_kg": float(row['weight_of_bag_kg']), # Updated to match your NEW Neon column name
-    "price_per_kg": float(row['price_per_kg']),
-    "availability": str(row['availability']),
-    "commodity_type": str(row['commodity_type'])
-}
+            "start_time": str(row['start_time'].strftime('%Y-%m-%d %H:%M:%S')),
+            "agent_code": str(row['agent_code']),
+            "state": str(row['state']),
+            "market": str(row['market']),
+            "commodity": str(row['commodity']),
+            "price_per_bag": float(row['price_per_bag']),
+            "weight_of_bag_kg": float(row['weight_of_bag_kg']),
+            "price_per_kg": float(row['price_per_kg']),
+            "availability": str(row['availability']),
+            "commodity_type": str(row['commodity_type'])
+        }
         
         try:
             response = requests.post(
@@ -267,13 +302,47 @@ def verify_data():
     print("=" * 70)
     
     try:
-        response = requests.get(f"{API_URL}/prices", headers=HEADERS)
+        # Fetch all records (paginated)
+        all_data = []
+        page = 1
         
-        if response.status_code == 200:
-            data = response.json()
+        print("\n🔄 Fetching all records from database...")
+        
+        while True:
+            response = requests.get(
+                f"{API_URL}/prices",
+                params={"page": page, "page_size": 1000},
+                headers=HEADERS
+            )
             
-            if data:
-                df = pd.DataFrame(data)
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Handle paginated response
+                if isinstance(result, dict) and 'data' in result:
+                    data = result['data']
+                    pagination = result.get('pagination', {})
+                    
+                    all_data.extend(data)
+                    print(f"   Fetched page {page}/{pagination.get('total_pages', '?')} ({len(data)} records)")
+                    
+                    # Check if there are more pages
+                    if not pagination.get('has_next', False):
+                        break
+                    
+                    page += 1
+                elif isinstance(result, list):
+                    # Old format (non-paginated)
+                    all_data = result
+                    break
+                else:
+                    break
+            else:
+                print(f"⚠️  API returned status {response.status_code}")
+                break
+        
+        if all_data:
+            df = pd.DataFrame(all_data)
                 print(f"\n✅ Database has {len(df)} total records")
                 
                 if 'start_time' in df.columns:

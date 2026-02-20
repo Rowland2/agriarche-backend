@@ -120,10 +120,44 @@ def upload_new_other_sources(excel_file_path):
     # Fetch existing data from database
     print("\n🔍 Checking database for existing records...")
     try:
-        response = requests.get(f"{API_URL}/other-sources", headers=HEADERS)
+        # Fetch all existing records (use large page size to get everything)
+        all_existing_data = []
+        page = 1
         
-        if response.status_code == 200:
-            existing_data = pd.DataFrame(response.json())
+        while True:
+            response = requests.get(
+                f"{API_URL}/other-sources",
+                params={"page": page, "page_size": 1000},
+                headers=HEADERS
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Handle paginated response
+                if isinstance(result, dict) and 'data' in result:
+                    data = result['data']
+                    pagination = result.get('pagination', {})
+                    
+                    all_existing_data.extend(data)
+                    
+                    # Check if there are more pages
+                    if not pagination.get('has_next', False):
+                        break
+                    
+                    page += 1
+                elif isinstance(result, list):
+                    # Old format (non-paginated)
+                    all_existing_data = result
+                    break
+                else:
+                    break
+            else:
+                print(f"⚠️  API returned status {response.status_code}")
+                break
+        
+        if all_existing_data:
+            existing_data = pd.DataFrame(all_existing_data)
             
             if not existing_data.empty:
                 existing_data['date'] = pd.to_datetime(existing_data['date'], errors='coerce')
@@ -231,13 +265,47 @@ def verify_other_sources():
     print("=" * 70)
     
     try:
-        response = requests.get(f"{API_URL}/other-sources", headers=HEADERS)
+        # Fetch all records (paginated)
+        all_data = []
+        page = 1
         
-        if response.status_code == 200:
-            data = response.json()
+        print("\n🔄 Fetching all records from database...")
+        
+        while True:
+            response = requests.get(
+                f"{API_URL}/other-sources",
+                params={"page": page, "page_size": 1000},
+                headers=HEADERS
+            )
             
-            if data:
-                df = pd.DataFrame(data)
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Handle paginated response
+                if isinstance(result, dict) and 'data' in result:
+                    data = result['data']
+                    pagination = result.get('pagination', {})
+                    
+                    all_data.extend(data)
+                    print(f"   Fetched page {page}/{pagination.get('total_pages', '?')} ({len(data)} records)")
+                    
+                    # Check if there are more pages
+                    if not pagination.get('has_next', False):
+                        break
+                    
+                    page += 1
+                elif isinstance(result, list):
+                    # Old format (non-paginated)
+                    all_data = result
+                    break
+                else:
+                    break
+            else:
+                print(f"⚠️  API returned status {response.status_code}")
+                break
+        
+        if all_data:
+            df = pd.DataFrame(all_data)
                 print(f"\n✅ Database has {len(df)} total records")
                 
                 if 'date' in df.columns:
