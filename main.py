@@ -266,6 +266,32 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
     # Debug: Show unique commodities in result
     unique_commodities = df['commodity'].unique().tolist()
     print(f"DEBUG: Unique commodities in result: {unique_commodities}")
+    
+    # 4. Calculate Strategic Sourcing (Best Buy & Worst Market)
+    strategic_sourcing = None
+    if not df.empty and len(df['market'].unique()) > 1:
+        # Group by market and calculate average prices
+        market_avg = df.groupby('market').agg({
+            'price_per_kg': 'mean',
+            'price_per_bag': 'mean'
+        }).reset_index()
+        
+        # Find cheapest and most expensive markets
+        cheapest_idx = market_avg['price_per_kg'].idxmin()
+        expensive_idx = market_avg['price_per_kg'].idxmax()
+        
+        strategic_sourcing = {
+            "best_buy": {
+                "market": market_avg.loc[cheapest_idx, 'market'],
+                "price_per_kg": round(float(market_avg.loc[cheapest_idx, 'price_per_kg']), 2),
+                "price_per_bag": round(float(market_avg.loc[cheapest_idx, 'price_per_bag']), 2)
+            },
+            "worst_market": {
+                "market": market_avg.loc[expensive_idx, 'market'],
+                "price_per_kg": round(float(market_avg.loc[expensive_idx, 'price_per_kg']), 2),
+                "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2)
+            }
+        }
 
     return {
         "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].astype(str).to_dict(orient='records'),
@@ -273,7 +299,8 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
             "avg": round(float(df['price_per_kg'].mean()), 2),
             "max": float(df['price_per_kg'].max()),
             "min": float(df['price_per_kg'].min())
-        }
+        },
+        "strategic_sourcing": strategic_sourcing
     }
 
 # ============================================================
