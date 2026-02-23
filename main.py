@@ -202,6 +202,102 @@ def get_other_sources(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Other sources fetch failed: {str(e)}")
 
+
+@app.get("/other-sources/filtered")
+def get_other_sources_filtered(
+    commodity: Optional[str] = None,
+    location: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    page: Optional[int] = 1,
+    page_size: Optional[int] = 100
+):
+    """
+    Get filtered other sources data with pagination
+    
+    Parameters:
+    - commodity: Filter by commodity (partial match)
+    - location: Filter by location (partial match)
+    - min_price: Minimum price
+    - max_price: Maximum price
+    - start_date: Start date (YYYY-MM-DD)
+    - end_date: End date (YYYY-MM-DD)
+    - page: Page number
+    - page_size: Records per page
+    
+    Example:
+    /other-sources/filtered?commodity=Maize&location=Kaduna&page=1&page_size=50
+    """
+    try:
+        df = fetch_other_sources_data()
+        
+        # Convert date to datetime
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Apply filters
+        if commodity:
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        
+        if location:
+            df = df[df['location'].str.contains(location, case=False, na=False)]
+        
+        if min_price is not None:
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+            df = df[df['price'] >= min_price]
+        
+        if max_price is not None:
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+            df = df[df['price'] <= max_price]
+        
+        if start_date:
+            df = df[df['date'] >= pd.to_datetime(start_date)]
+        
+        if end_date:
+            df = df[df['date'] <= pd.to_datetime(end_date)]
+        
+        # Convert date back to string
+        df['date'] = df['date'].astype(str)
+        
+        # Ensure required columns
+        required_cols = ['date', 'commodity', 'location', 'unit', 'price']
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = ''
+        
+        df = df[required_cols]
+        
+        # Calculate pagination
+        total_records = len(df)
+        total_pages = (total_records + page_size - 1) // page_size
+        
+        # Validate page number
+        if page < 1:
+            page = 1
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+        
+        # Apply pagination
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        df_page = df.iloc[start_idx:end_idx]
+        
+        return {
+            "data": df_page.to_dict(orient='records'),
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_records": total_records,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_previous": page > 1
+            }
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Filtered other sources failed: {str(e)}")
+
 @app.get("/intelligence/{commodity}")
 def get_intelligence(commodity: str):
     """Provides market descriptions for the Streamlit info box."""
@@ -482,6 +578,42 @@ def get_year_list():
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch years: {str(e)}")
+
+
+@app.get("/filters/other-sources-locations")
+def get_other_sources_locations():
+    """Get list of unique locations from other_sources table"""
+    try:
+        query = "SELECT DISTINCT location FROM other_sources WHERE location IS NOT NULL ORDER BY location"
+        df = pd.read_sql(text(query), engine)
+        
+        locations = df['location'].tolist()
+        
+        return {
+            "locations": locations,
+            "count": len(locations)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch locations: {str(e)}")
+
+
+@app.get("/filters/other-sources-commodities")
+def get_other_sources_commodities():
+    """Get list of unique commodities from other_sources table"""
+    try:
+        query = "SELECT DISTINCT commodity FROM other_sources WHERE commodity IS NOT NULL ORDER BY commodity"
+        df = pd.read_sql(text(query), engine)
+        
+        commodities = df['commodity'].tolist()
+        
+        return {
+            "commodities": commodities,
+            "count": len(commodities)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch other sources commodities: {str(e)}")
 
 
 @app.get("/filters/all")
