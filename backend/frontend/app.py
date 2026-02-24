@@ -504,7 +504,84 @@ try:
                             """, unsafe_allow_html=True)
             except Exception as e:
                 pass  # Strategic sourcing not critical, continue if fails
-        
+
+            # =====================================================
+            # CHANGE 3: MARKET COMPARISON WITH EXTERNAL SOURCES
+            # =====================================================
+            try:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader("📊 Market Comparison (Internal + External Sources)")
+                
+                # Fetch market comparison data
+                comparison_response = requests.get(
+                    f"{BASE_URL}/market-comparison",
+                    params={"commodity": api_commodity_name, "month": month_sel},
+                    headers=HEADERS,
+                    timeout=15
+                )
+                
+                if comparison_response.status_code == 200:
+                    comparison_data = comparison_response.json()
+                    
+                    if comparison_data.get('markets') and len(comparison_data['markets']) > 0:
+                        markets_list = comparison_data['markets']
+                        
+                        # Display summary
+                        st.info(f"📍 Comparing {comparison_data['total_markets']} markets: "
+                               f"{comparison_data['internal_count']} internal + "
+                               f"{comparison_data['external_count']} external sources")
+                        
+                        # Create comparison table
+                        comparison_df = pd.DataFrame(markets_list)
+                        
+                        # Format price columns
+                        comparison_df['avg_price_per_kg'] = comparison_df['avg_price_per_kg'].apply(lambda x: f"₦{x:,.2f}")
+                        comparison_df['min_price'] = comparison_df['min_price'].apply(lambda x: f"₦{x:,.2f}")
+                        comparison_df['max_price'] = comparison_df['max_price'].apply(lambda x: f"₦{x:,.2f}")
+                        
+                        # Rename columns for display
+                        comparison_df = comparison_df.rename(columns={
+                            'source': 'Source Type',
+                            'market': 'Market/Location',
+                            'avg_price_per_kg': 'Avg Price/Kg',
+                            'min_price': 'Min Price',
+                            'max_price': 'Max Price'
+                        })
+                        
+                        # Display table
+                        st.dataframe(
+                            comparison_df,
+                            use_container_width=True,
+                            height=400
+                        )
+                        
+                        # Highlight best and worst
+                        st.markdown(
+                            f"""
+                            <div style='display: flex; gap: 20px; margin-top: 20px;'>
+                                <div style='flex: 1; padding: 15px; background: #d4edda; border-radius: 8px;'>
+                                    <div style='font-size: 12px; color: #155724;'>CHEAPEST OVERALL</div>
+                                    <div style='font-size: 18px; font-weight: bold; color: #155724;'>{markets_list[0]['market']}</div>
+                                    <div style='font-size: 14px; color: #155724;'>₦{markets_list[0]['avg_price_per_kg']:.2f}/kg ({markets_list[0]['source']})</div>
+                                </div>
+                                <div style='flex: 1; padding: 15px; background: #f8d7da; border-radius: 8px;'>
+                                    <div style='font-size: 12px; color: #721c24;'>MOST EXPENSIVE</div>
+                                    <div style='font-size: 18px; font-weight: bold; color: #721c24;'>{markets_list[-1]['market']}</div>
+                                    <div style='font-size: 14px; color: #721c24;'>₦{markets_list[-1]['avg_price_per_kg']:.2f}/kg ({markets_list[-1]['source']})</div>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.info("No market comparison data available for this commodity and month.")
+                else:
+                    st.warning(f"Market comparison unavailable (Status: {comparison_response.status_code})")
+                    
+            except Exception as e:
+                st.warning(f"Market comparison feature unavailable: {str(e)}")
+                pass
+
         else:
             st.warning(f"No chart data found for {display_name} in {month_sel}.")
 except Exception as e:
@@ -855,7 +932,6 @@ st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sour
 
 try:
     # Pagination controls for Other Sources (add at top of section)
-   # st.markdown("### Pagination")
     os_col1, os_col2 = st.columns(2)
     
     with os_col1:
@@ -908,16 +984,37 @@ try:
             st.sidebar.markdown("---")
             st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
+            # CHANGE 1: Get filters from /filters/all endpoint for better performance
+            try:
+                filters_response = requests.get(f"{BASE_URL}/filters/all", headers=HEADERS, timeout=10)
+                if filters_response.status_code == 200:
+                    all_filters = filters_response.json()
+                    
+                    # Use filters from endpoint
+                    if 'other_sources' in all_filters:
+                        os_commodities = ["All"] + all_filters['other_sources']['commodities']
+                        os_locations = ["All"] + all_filters['other_sources']['locations']
+                    else:
+                        # Fallback to data-based filters
+                        os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+                        os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
+                else:
+                    # Fallback to data-based filters
+                    os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+                    os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
+            except:
+                # Fallback to data-based filters
+                os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+                os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
+
             # Independent Commodity filter for Other sources
-            os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
             selected_os_comm = st.sidebar.selectbox(
                 "Other sources Commodity", 
                 os_commodities, 
                 key="os_comm_independent"
             )
-            
+
             # Independent Market filter for Other sources
-            os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
             selected_os_loc = st.sidebar.selectbox(
                 "Other sources Market", 
                 os_locations, 
@@ -995,15 +1092,95 @@ try:
                     hide_index=True,
                     height=600
                 )
-                
-                # Show record count with pagination info
-                st.markdown(f"""
-                    <div style="background-color: #E8F5E9; padding: 15px; border-radius: 8px; margin-top: 10px; text-align: center;">
-                        <p style="color: #1F7A3F; font-size: 18px; font-weight: bold; margin: 0;">
-                            📊 Showing {len(display_df):,} records (Page {os_pagination.get('page', 1)} of {os_pagination.get('total_pages', 1)} | Total: {os_pagination.get('total_records', 0):,})
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
+
+                # CHANGE 2: PDF Download Section
+                st.markdown("---")
+
+                # Create two columns for download button and pagination info
+                download_col1, download_col2 = st.columns([1, 2])
+
+                with download_col1:
+                    # PDF Download Button
+                    if st.button("📄 Download Monthly Report (PDF)", key="download_os_pdf"):
+                        try:
+                            # Create PDF buffer
+                            pdf_buffer = BytesIO()
+                            doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+                            elements = []
+                            styles = getSampleStyleSheet()
+                            
+                            # Title
+                            title = Paragraph(f"<b>Externally Sourced Market Prices</b>", styles['Title'])
+                            elements.append(title)
+                            elements.append(Spacer(1, 12))
+                            
+                            # Date and summary
+                            date_text = f"Report Date: {datetime.now().strftime('%B %d, %Y')}"
+                            date_para = Paragraph(date_text, styles['Normal'])
+                            elements.append(date_para)
+                            
+                            summary_text = f"Total Records: {len(filtered_os):,}"
+                            summary_para = Paragraph(summary_text, styles['Normal'])
+                            elements.append(summary_para)
+                            elements.append(Spacer(1, 12))
+                            
+                            # Prepare table data
+                            table_data = [['Date', 'Commodity', 'Location', 'Price', 'Unit']]
+                            
+                            for _, row in filtered_os.head(500).iterrows():  # Limit to 500 records for PDF
+                                table_data.append([
+                                    str(row['date'])[:10],
+                                    str(row['commodity']),
+                                    str(row['location'])[:30],  # Truncate long locations
+                                    f"N{int(row['price']):,}",  # Use N instead of ₦ for PDF compatibility
+                                    str(row['unit'])
+                                ])
+                            
+                            # Create table
+                            t = Table(table_data)
+                            t.setStyle(TableStyle([
+                                ('BACKGROUND', (0, 0), (-1, 0), colors.green),
+                                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                            ]))
+                            
+                            elements.append(t)
+                            
+                            # Build PDF
+                            doc.build(elements)
+                            pdf_buffer.seek(0)
+                            
+                            # Download button
+                            st.download_button(
+                                label="⬇️ Click to Download",
+                                data=pdf_buffer,
+                                file_name=f"Other_Sources_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                mime="application/pdf",
+                                key="download_pdf_file"
+                            )
+                            
+                            st.success("✅ PDF generated successfully!")
+                            
+                        except Exception as e:
+                            st.error(f"Failed to generate PDF: {e}")
+
+                with download_col2:
+                    # Pagination info display
+                    st.markdown(
+                        f"""
+                        <div style='text-align: right; padding: 10px; color: #666; font-size: 14px;'>
+                            📊 Showing {len(display_df)} records 
+                            (Page {os_pagination.get('page', 1)} of {os_pagination.get('total_pages', 1)} | 
+                            Total: {os_pagination.get('total_records', len(os_data)):,})
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                 
                 # Pagination navigation
                 os_nav_col1, os_nav_col2, os_nav_col3 = st.columns([1, 1, 1])
