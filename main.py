@@ -392,9 +392,16 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
     return {
         "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].astype(str).to_dict(orient='records'),
         "metrics": {
-            "avg": round(float(df['price_per_kg'].mean()), 2),
-            "max": float(df['price_per_kg'].max()),
-            "min": float(df['price_per_kg'].min())
+            "price_per_kg": {
+                "avg": round(float(df['price_per_kg'].mean()), 2),
+                "max": float(df['price_per_kg'].max()),
+                "min": float(df['price_per_kg'].min())
+            },
+            "price_per_bag": {
+                "avg": round(float(df['price_per_bag'].mean()), 2),
+                "max": float(df['price_per_bag'].max()),
+                "min": float(df['price_per_bag'].min())
+            }
         },
         "strategic_sourcing": strategic_sourcing
     }
@@ -431,44 +438,42 @@ def get_filtered_prices(
     """
     
     try:
-        # Start with base query
-        query = "SELECT * FROM prices WHERE 1=1"
-        params = {}
+        # Fetch all data first
+        df = fetch_data()
         
-        # Add filters dynamically
+        # Convert datetime to string for JSON serialization
+        if 'start_time' in df.columns:
+            df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+        
+        # Apply filters if provided
         if commodity:
-            query += " AND LOWER(commodity) LIKE LOWER(:commodity)"
-            params['commodity'] = f"%{commodity}%"
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
         
         if market:
-            query += " AND LOWER(market) LIKE LOWER(:market)"
-            params['market'] = f"%{market}%"
+            df = df[df['market'].str.contains(market, case=False, na=False)]
         
         if state:
-            query += " AND LOWER(state) LIKE LOWER(:state)"
-            params['state'] = f"%{state}%"
+            df = df[df['state'].str.contains(state, case=False, na=False)]
         
         if min_price is not None:
-            query += " AND price_per_kg >= :min_price"
-            params['min_price'] = min_price
+            df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
+            df = df[df['price_per_kg'] >= min_price]
         
         if max_price is not None:
-            query += " AND price_per_kg <= :max_price"
-            params['max_price'] = max_price
+            df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
+            df = df[df['price_per_kg'] <= max_price]
         
         if start_date:
-            query += " AND start_time >= :start_date"
-            params['start_date'] = start_date
+            df = df[df['start_time'] >= pd.to_datetime(start_date)]
         
         if end_date:
-            query += " AND start_time <= :end_date"
-            params['end_date'] = end_date
+            df = df[df['start_time'] <= pd.to_datetime(end_date)]
         
-        # Add ordering
-        query += " ORDER BY start_time DESC"
+        # Convert start_time to string after filtering
+        df['start_time'] = df['start_time'].astype(str)
         
-        # Execute query
-        df = pd.read_sql(text(query), engine, params=params)
+        # Sort by date
+        df = df.sort_values('start_time', ascending=False)
         
         # Calculate pagination
         total_records = len(df)
