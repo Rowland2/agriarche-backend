@@ -641,13 +641,151 @@ def get_all_filters():
         query_years = "SELECT DISTINCT EXTRACT(YEAR FROM start_time) as year FROM prices ORDER BY year DESC"
         years_df = pd.read_sql(text(query_years), engine)
         
+        # Get other sources commodities
+        query_other_commodities = "SELECT DISTINCT commodity FROM other_sources WHERE commodity IS NOT NULL ORDER BY commodity"
+        other_commodities_df = pd.read_sql(text(query_other_commodities), engine)
+        
+        # Get other sources locations
+        query_other_locations = "SELECT DISTINCT location FROM other_sources WHERE location IS NOT NULL ORDER BY location"
+        other_locations_df = pd.read_sql(text(query_other_locations), engine)
+        
         return {
             "commodities": commodities_df['commodity'].tolist(),
             "markets": markets_df['market'].tolist(),
             "states": states_df['state'].tolist(),
             "years": [str(int(year)) for year in years_df['year'].tolist()],
             "months": ["January", "February", "March", "April", "May", "June", 
-                      "July", "August", "September", "October", "November", "December"]
+                      "July", "August", "September", "October", "November", "December"],
+            "other_sources": {
+                "commodities": other_commodities_df['commodity'].tolist(),
+                "locations": other_locations_df['location'].tolist()
+            }
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch filters: {str(e)}")
+
+
+@app.get("/market-comparison")
+def get_market_comparison(commodity: str, month: str):
+    """
+    Get market comparison including BOTH internal and external sources
+    
+    Parameters:
+    - commodity: Commodity name
+    - month: Month name (e.g., "January")
+    
+    Returns: Combined data from internal Kasuwa prices and external sources
+    
+    Example:
+    /market-comparison?commodity=Maize&month=January
+    """
+    try:
+        # 1. Get internal prices (Kasuwa data)
+        df_internal = fetch_data()
+        df_internal['start_time'] = pd.to_datetime(df_internal['start_time'])
+        df_internal['month_name'] = df_internal['start_time'].dt.strftime('%B')
+        
+        # Filter by commodity and month
+        df_internal = df_internal[
+            (df_internal['commodity'].str.contains(commodity, case=False, na=False)) &
+            (df_internal['month_name'].str.lower() == month.lower())
+        ]
+        
+        # Process internal data
+        df_internal['price_per_kg'] = pd.to_numeric(df_internal['price_per_kg'], errors='coerce')
+        
+        internal_markets = []
+        if not df_internal.empty:
+            for market in df_internal['market'].unique():
+                market_data = df_internal[df_internal['market'] == market]
+                internal_markets.append({
+                    "source": "Internal (Kasuwa)",
+                    "market": market,
+                    "avg_price_per_kg": round(float(market_data['price_per_kg'].mean()), 2),
+                    "min_price": float(market_data['price_per_kg'].min()),
+                    "max_price": float(market_data['price_per_kg'].max())
+                })
+        
+        # 2. Get external sources
+        df_external = fetch_other_sources_data()
+        df_external['date'] = pd.to_datetime(df_external['date'], errors='coerce')
+        df_external['month_name'] = df_external['date'].dt.strftime('%B')
+        
+        # Filter by commodity and month
+        df_external = df_external[
+            (df_external['commodity'].str.contains(commodity, case=False, na=False)) &
+            (df_external['month_name'].str.lower() == month.lower())
+        ]
+        
+        # Process external data
+        df_external['price'] = pd.to_numeric(df_external['price'], errors='coerce')
+        
+        external_markets = []
+        if not df_external.empty:
+            for location in df_external['location'].unique():
+                location_data = df_external[df_external['location'] == location]
+                # Convert bag price to per kg (assuming 100kg per bag)
+                avg_price_per_bag = location_data['price'].mean()
+                avg_price_per_kg = avg_price_per_bag / 100 if location_data['unit'].iloc[0] == 'bag' else avg_price_per_bag
+                
+                external_markets.append({
+                    "source": "External",
+                    "market": location,
+                    "avg_price_per_kg": round(float(avg_price_per_kg), 2),
+                    "min_price": float(location_data['price'].min() / 100 if location_data['unit'].iloc[0] == 'bag' else location_data['price'].min()),
+                    "max_price": float(location_data['price'].max() / 100 if location_data['unit'].iloc[0] == 'bag' else location_data['price'].max())
+                })
+        
+        # 3. Combine both sources
+        all_markets = internal_markets + external_markets
+        
+        # Sort by average price
+        all_markets.sort(key=lambda x: x['avg_price_per_kg'])
+        
+        return {
+            "commodity": commodity,
+            "month": month,
+            "markets": all_markets,
+            "total_markets": len(all_markets),
+            "internal_count": len(internal_markets),
+            "external_count": len(external_markets)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Market comparison failed: {str(e)}")
+        
+        # Get markets
+        query_markets = "SELECT DISTINCT market FROM prices WHERE market IS NOT NULL ORDER BY market"
+        markets_df = pd.read_sql(text(query_markets), engine)
+        
+        # Get states
+        query_states = "SELECT DISTINCT state FROM prices WHERE state IS NOT NULL ORDER BY state"
+        states_df = pd.read_sql(text(query_states), engine)
+        
+        # Get years
+        query_years = "SELECT DISTINCT EXTRACT(YEAR FROM start_time) as year FROM prices ORDER BY year DESC"
+        years_df = pd.read_sql(text(query_years), engine)
+        
+        # Get other sources commodities
+        query_other_commodities = "SELECT DISTINCT commodity FROM other_sources WHERE commodity IS NOT NULL ORDER BY commodity"
+        other_commodities_df = pd.read_sql(text(query_other_commodities), engine)
+        
+        # Get other sources locations
+        query_other_locations = "SELECT DISTINCT location FROM other_sources WHERE location IS NOT NULL ORDER BY location"
+        other_locations_df = pd.read_sql(text(query_other_locations), engine)
+        
+        return {
+            "commodities": commodities_df['commodity'].tolist(),
+            "markets": markets_df['market'].tolist(),
+            "states": states_df['state'].tolist(),
+            "years": [str(int(year)) for year in years_df['year'].tolist()],
+            "months": ["January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November", "December"],
+            "other_sources": {
+                "commodities": other_commodities_df['commodity'].tolist(),
+                "locations": other_locations_df['location'].tolist()
+            }
         }
     
     except Exception as e:
