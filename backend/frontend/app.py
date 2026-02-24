@@ -505,83 +505,6 @@ try:
             except Exception as e:
                 pass  # Strategic sourcing not critical, continue if fails
 
-            # =====================================================
-            # CHANGE 3: MARKET COMPARISON WITH EXTERNAL SOURCES
-            # =====================================================
-            try:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader("📊 Market Comparison (Internal + External Sources)")
-                
-                # Fetch market comparison data
-                comparison_response = requests.get(
-                    f"{BASE_URL}/market-comparison",
-                    params={"commodity": api_commodity_name, "month": month_sel},
-                    headers=HEADERS,
-                    timeout=15
-                )
-                
-                if comparison_response.status_code == 200:
-                    comparison_data = comparison_response.json()
-                    
-                    if comparison_data.get('markets') and len(comparison_data['markets']) > 0:
-                        markets_list = comparison_data['markets']
-                        
-                        # Display summary
-                        st.info(f"📍 Comparing {comparison_data['total_markets']} markets: "
-                               f"{comparison_data['internal_count']} internal + "
-                               f"{comparison_data['external_count']} external sources")
-                        
-                        # Create comparison table
-                        comparison_df = pd.DataFrame(markets_list)
-                        
-                        # Format price columns
-                        comparison_df['avg_price_per_kg'] = comparison_df['avg_price_per_kg'].apply(lambda x: f"₦{x:,.2f}")
-                        comparison_df['min_price'] = comparison_df['min_price'].apply(lambda x: f"₦{x:,.2f}")
-                        comparison_df['max_price'] = comparison_df['max_price'].apply(lambda x: f"₦{x:,.2f}")
-                        
-                        # Rename columns for display
-                        comparison_df = comparison_df.rename(columns={
-                            'source': 'Source Type',
-                            'market': 'Market/Location',
-                            'avg_price_per_kg': 'Avg Price/Kg',
-                            'min_price': 'Min Price',
-                            'max_price': 'Max Price'
-                        })
-                        
-                        # Display table
-                        st.dataframe(
-                            comparison_df,
-                            use_container_width=True,
-                            height=400
-                        )
-                        
-                        # Highlight best and worst
-                        st.markdown(
-                            f"""
-                            <div style='display: flex; gap: 20px; margin-top: 20px;'>
-                                <div style='flex: 1; padding: 15px; background: #d4edda; border-radius: 8px;'>
-                                    <div style='font-size: 12px; color: #155724;'>CHEAPEST OVERALL</div>
-                                    <div style='font-size: 18px; font-weight: bold; color: #155724;'>{markets_list[0]['market']}</div>
-                                    <div style='font-size: 14px; color: #155724;'>₦{markets_list[0]['avg_price_per_kg']:.2f}/kg ({markets_list[0]['source']})</div>
-                                </div>
-                                <div style='flex: 1; padding: 15px; background: #f8d7da; border-radius: 8px;'>
-                                    <div style='font-size: 12px; color: #721c24;'>MOST EXPENSIVE</div>
-                                    <div style='font-size: 18px; font-weight: bold; color: #721c24;'>{markets_list[-1]['market']}</div>
-                                    <div style='font-size: 14px; color: #721c24;'>₦{markets_list[-1]['avg_price_per_kg']:.2f}/kg ({markets_list[-1]['source']})</div>
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.info("No market comparison data available for this commodity and month.")
-                else:
-                    st.warning(f"Market comparison unavailable (Status: {comparison_response.status_code})")
-                    
-            except Exception as e:
-                st.warning(f"Market comparison feature unavailable: {str(e)}")
-                pass
-
         else:
             st.warning(f"No chart data found for {display_name} in {month_sel}.")
 except Exception as e:
@@ -845,78 +768,181 @@ try:
                     st.warning(f"Gap analysis: {str(e)}")
                 
                 # =====================================================
-                # MARKET COMPARISON SECTION
+                # MARKET COMPARISON SECTION (INTERNAL + EXTERNAL)
                 # =====================================================
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("📊 Market Comparison")
-                st.write(f"Compare {display_name} prices across different markets for {month_sel}")
-                
-                # Show which markets have data for this commodity
-                markets_with_data = sorted(strategy_df['market'].unique().tolist())
-                
-                if len(markets_with_data) >= 2:
-                    st.info(f"📍 Markets with {display_name} data in {month_sel}: {', '.join(markets_with_data)}")
-                    
-                    col_comp1, col_comp2 = st.columns(2)
-                    
-                    with col_comp1:
-                        market_a = st.selectbox("Select First Market", markets_with_data, key="comp_market_a")
-                    
-                    with col_comp2:
-                        remaining_markets = [m for m in markets_with_data if m != market_a]
-                        market_b = st.selectbox("Select Second Market", remaining_markets, key="comp_market_b")
-                    
-                    # Calculate prices for both markets
-                    price_a = strategy_df[strategy_df['market'] == market_a][target_col].mean()
-                    price_b = strategy_df[strategy_df['market'] == market_b][target_col].mean()
-                    
-                    # Calculate difference
-                    diff = price_b - price_a
-                    perc_diff = (diff / price_a) * 100 if price_a != 0 else 0
-                    
-                    # Determine which is cheaper
-                    cheaper_market = market_a if price_a < price_b else market_b
-                    cheaper_price = min(price_a, price_b)
-                    expensive_market = market_b if price_a < price_b else market_a
-                    expensive_price = max(price_a, price_b)
-                    
-                    unit_label_comp = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
-                    
-                    # Display comparison cards
-                    comp_col1, comp_col2 = st.columns(2)
-                    
-                    with comp_col1:
-                        st.markdown(f"""
-                            <div class="strategy-card best-buy">
-                                <div style="font-size: 14px; opacity: 0.9;">CHEAPER MARKET</div>
-                                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{cheaper_market}</div>
-                                <div style="font-size: 20px;">₦{cheaper_price:,.2f} <small>({unit_label_comp})</small></div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with comp_col2:
-                        st.markdown(f"""
-                            <div class="strategy-card worst-buy">
-                                <div style="font-size: 14px; opacity: 0.9;">MORE EXPENSIVE</div>
-                                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{expensive_market}</div>
-                                <div style="font-size: 20px;">₦{expensive_price:,.2f} <small>({unit_label_comp})</small></div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Price difference insight - MORE READABLE
-                    if abs(perc_diff) > 0:
-                        insight_text = f"{market_b} is **{abs(perc_diff):.1f}%** {'more expensive' if perc_diff > 0 else 'cheaper'} than {market_a} (**₦{abs(diff):,.2f}** difference)"
-                        
-                        st.markdown(f"""
-                            <div style="background-color: #FFF4E5; padding: 20px; border-radius: 10px; margin-top: 15px; border-left: 5px solid {ACCENT_COLOR};">
-                                <p style="color: #1F2937; font-size: 17px; font-weight: 600; margin: 0; line-height: 1.6;">
-                                    💰 <b>Price Difference:</b> {insight_text}
-                                </p>
-                            </div>
-                        """, unsafe_allow_html=True)
-                
-                else:
-                    st.info(f"Need at least 2 markets with data for {display_name} to enable comparison.")
+                st.write("Compare prices across internal and external markets for any commodity")
+
+                try:
+                    # --- BUILD COMBINED MARKET & COMMODITY POOL ---
+
+                    # Internal markets from already-loaded all_data
+                    internal_markets = sorted(all_data['market'].dropna().unique().tolist())
+
+                    # Internal commodities (normalized for display)
+                    internal_commodities_raw = all_data['commodity'].dropna().unique().tolist()
+                    internal_commodities = sorted(set(normalize_commodity_for_display(c) for c in internal_commodities_raw))
+
+                    # External markets & commodities from other-sources API
+                    ext_markets = []
+                    ext_commodities = []
+                    ext_df_full = pd.DataFrame()
+                    try:
+                        ext_resp = requests.get(
+                            f"{BASE_URL}/other-sources",
+                            params={"page": 1, "page_size": 10000},
+                            headers=HEADERS,
+                            timeout=15
+                        )
+                        if ext_resp.status_code == 200:
+                            ext_result = ext_resp.json()
+                            ext_raw = ext_result.get('data', ext_result) if isinstance(ext_result, dict) else ext_result
+                            if ext_raw:
+                                ext_df_full = pd.DataFrame(ext_raw)
+                                ext_df_full['date'] = pd.to_datetime(ext_df_full['date'], errors='coerce')
+                                ext_df_full['month_name'] = ext_df_full['date'].dt.strftime('%B')
+                                ext_df_full['price'] = pd.to_numeric(ext_df_full['price'], errors='coerce')
+                                ext_markets = sorted(ext_df_full['location'].dropna().unique().tolist())
+                                ext_commodities = sorted(ext_df_full['commodity'].dropna().unique().tolist())
+                    except Exception:
+                        pass
+
+                    # Combined and deduplicated lists
+                    all_combined_markets = sorted(set(
+                        [f"[Internal] {m}" for m in internal_markets] +
+                        [f"[External] {m}" for m in ext_markets]
+                    ))
+                    all_combined_commodities = sorted(set(internal_commodities + ext_commodities))
+
+                    if len(all_combined_markets) >= 2 and all_combined_commodities:
+
+                        # --- THREE DROPDOWNS ---
+                        dd_col1, dd_col2, dd_col3 = st.columns(3)
+
+                        with dd_col1:
+                            comp_commodity = st.selectbox(
+                                "🌾 Select Commodity",
+                                all_combined_commodities,
+                                index=all_combined_commodities.index(display_name) if display_name in all_combined_commodities else 0,
+                                key="comp_commodity"
+                            )
+
+                        with dd_col2:
+                            market_a = st.selectbox("Select First Market", all_combined_markets, key="comp_market_a")
+
+                        with dd_col3:
+                            remaining_markets = [m for m in all_combined_markets if m != market_a]
+                            market_b = st.selectbox("Select Second Market", remaining_markets, key="comp_market_b")
+
+                        # --- PRICE LOOKUP HELPER ---
+                        def get_price_for_market(market_label, commodity_sel):
+                            """
+                            Returns avg price per kg for a given market label and commodity.
+                            Internal markets use price_per_kg; external use price (assumed per kg unless unit=bag).
+                            """
+                            source_type = "internal" if market_label.startswith("[Internal]") else "external"
+                            market_name = market_label.replace("[Internal] ", "").replace("[External] ", "")
+
+                            if source_type == "internal":
+                                # Match commodity: try exact normalized match first, then partial
+                                api_name = convert_display_to_api_format(commodity_sel)
+                                subset = all_data[all_data['market'].str.lower() == market_name.lower()]
+                                subset = subset[subset['commodity'].str.lower() == api_name.lower()]
+                                if subset.empty:
+                                    subset = all_data[all_data['market'].str.lower() == market_name.lower()]
+                                    subset = subset[subset['commodity'].str.contains(commodity_sel, case=False, na=False)]
+                                if subset.empty:
+                                    return None
+                                col = 'price_per_kg' if target_col == 'price_per_kg' else 'price_per_bag'
+                                val = pd.to_numeric(subset[col], errors='coerce').mean()
+                                return round(float(val), 2) if pd.notna(val) else None
+
+                            else:  # external
+                                if ext_df_full.empty:
+                                    return None
+                                subset = ext_df_full[ext_df_full['location'].str.lower() == market_name.lower()]
+                                subset = subset[subset['commodity'].str.contains(commodity_sel, case=False, na=False)]
+                                if subset.empty:
+                                    return None
+                                # Normalize to per-kg if unit is bag (assume 100kg bag)
+                                prices = []
+                                for _, row in subset.iterrows():
+                                    p = row['price']
+                                    unit = str(row.get('unit', '')).lower()
+                                    if 'bag' in unit:
+                                        p = p / 100
+                                    prices.append(p)
+                                return round(float(pd.Series(prices).mean()), 2) if prices else None
+
+                        # --- CALCULATE PRICES ---
+                        price_a = get_price_for_market(market_a, comp_commodity)
+                        price_b = get_price_for_market(market_b, comp_commodity)
+
+                        unit_label_comp = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
+                        source_a = "Internal" if market_a.startswith("[Internal]") else "External"
+                        source_b = "Internal" if market_b.startswith("[Internal]") else "External"
+                        name_a = market_a.replace("[Internal] ", "").replace("[External] ", "")
+                        name_b = market_b.replace("[Internal] ", "").replace("[External] ", "")
+
+                        if price_a is not None and price_b is not None:
+                            diff = price_b - price_a
+                            perc_diff = (diff / price_a) * 100 if price_a != 0 else 0
+
+                            cheaper_name   = name_a if price_a <= price_b else name_b
+                            cheaper_source = source_a if price_a <= price_b else source_b
+                            cheaper_price  = min(price_a, price_b)
+                            exp_name       = name_b if price_a <= price_b else name_a
+                            exp_source     = source_b if price_a <= price_b else source_a
+                            exp_price      = max(price_a, price_b)
+
+                            # Display cards
+                            comp_col1, comp_col2 = st.columns(2)
+                            with comp_col1:
+                                st.markdown(f"""
+                                    <div class="strategy-card best-buy">
+                                        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">CHEAPER MARKET • {cheaper_source}</div>
+                                        <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{cheaper_name}</div>
+                                        <div style="font-size: 20px;">₦{cheaper_price:,.2f} <small>({unit_label_comp})</small></div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            with comp_col2:
+                                st.markdown(f"""
+                                    <div class="strategy-card worst-buy">
+                                        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">MORE EXPENSIVE • {exp_source}</div>
+                                        <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{exp_name}</div>
+                                        <div style="font-size: 20px;">₦{exp_price:,.2f} <small>({unit_label_comp})</small></div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                            # Price difference insight
+                            if abs(perc_diff) > 0:
+                                direction = "more expensive" if perc_diff > 0 else "cheaper"
+                                insight_text = (
+                                    f"{name_b} ({source_b}) is **{abs(perc_diff):.1f}%** {direction} than "
+                                    f"{name_a} ({source_a}) — **₦{abs(diff):,.2f}** difference"
+                                )
+                                st.markdown(f"""
+                                    <div style="background-color: #FFF4E5; padding: 20px; border-radius: 10px;
+                                                margin-top: 15px; border-left: 5px solid {ACCENT_COLOR};">
+                                        <p style="color: #1F2937; font-size: 17px; font-weight: 600; margin: 0; line-height: 1.6;">
+                                            💰 <b>Price Difference:</b> {insight_text}
+                                        </p>
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                        elif price_a is None and price_b is None:
+                            st.warning(f"No price data found for **{comp_commodity}** in either selected market.")
+                        elif price_a is None:
+                            st.warning(f"No price data for **{comp_commodity}** in **{name_a}** ({source_a}).")
+                        else:
+                            st.warning(f"No price data for **{comp_commodity}** in **{name_b}** ({source_b}).")
+
+                    else:
+                        st.info("Not enough combined market data available to enable comparison.")
+
+                except Exception as comp_err:
+                    st.warning(f"Market comparison unavailable: {str(comp_err)}")
             else:
                 st.info(f"Insufficient market data for strategic sourcing analysis of {display_name} in {month_sel}.")
         else:
