@@ -25,7 +25,7 @@ origins_dev = [
 origins_prod = [
     "https://agriarche-pricing-pfadctddnsfn2mqob8snwe.streamlit.app",
     "https://www.gofarmrate.com",
-    "https://gofarmrate.com",
+    "https://app.kasuwa.com/dashboard/sourcing-insights",
 ]
 
 allowed_origins = origins_dev + origins_prod
