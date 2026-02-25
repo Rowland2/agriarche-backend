@@ -163,6 +163,8 @@ def get_other_sources(
         raise HTTPException(status_code=500, detail=f"Other sources fetch failed: {str(e)}")
 
 
+# Replace your /other-sources/filtered endpoint with this improved version:
+
 @app.get("/other-sources/filtered")
 def get_other_sources_filtered(
     commodity: Optional[str] = None,
@@ -174,38 +176,102 @@ def get_other_sources_filtered(
     page: Optional[int] = 1,
     page_size: Optional[int] = 100
 ):
+    """
+    Get filtered other sources data with pagination
+    
+    Parameters:
+    - commodity: Filter by commodity (partial match)
+    - location: Filter by location (partial match)  
+    - min_price: Minimum price
+    - max_price: Maximum price
+    - start_date: Start date (YYYY-MM-DD)
+    - end_date: End date (YYYY-MM-DD)
+    - page: Page number
+    - page_size: Records per page
+    
+    Example:
+    /other-sources/filtered?commodity=Maize&location=Kaduna&page=1&page_size=50
+    """
     try:
+        # Fetch all other sources data
         df = fetch_other_sources_data()
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Handle empty dataframe
+        if df.empty:
+            return {
+                "data": [],
+                "pagination": {
+                    "page": 1,
+                    "page_size": page_size,
+                    "total_records": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                },
+                "filters_applied": {
+                    "commodity": commodity,
+                    "location": location
+                }
+            }
+        
+        # Convert date column
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        # Apply commodity filter
         if commodity:
+            # Case-insensitive partial match
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        
+        # Apply location filter
         if location:
+            # Case-insensitive partial match
             df = df[df['location'].str.contains(location, case=False, na=False)]
+        
+        # Apply price filters
         if min_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] >= min_price]
+        
         if max_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] <= max_price]
+        
+        # Apply date filters
         if start_date:
             df = df[df['date'] >= pd.to_datetime(start_date)]
+        
         if end_date:
             df = df[df['date'] <= pd.to_datetime(end_date)]
-        df['date'] = df['date'].astype(str)
+        
+        # Convert date back to string for JSON
+        if 'date' in df.columns:
+            df['date'] = df['date'].astype(str)
+        
+        # Ensure required columns exist
         required_cols = ['date', 'commodity', 'location', 'unit', 'price']
         for col in required_cols:
             if col not in df.columns:
                 df[col] = ''
+        
+        # Select only required columns
         df = df[required_cols]
+        
+        # Calculate pagination
         total_records = len(df)
-        total_pages = (total_records + page_size - 1) // page_size
+        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
+        
+        # Validate page number
         if page < 1:
             page = 1
-        if page > total_pages and total_pages > 0:
+        if total_pages > 0 and page > total_pages:
             page = total_pages
+        
+        # Apply pagination
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        df_page = df.iloc[start_idx:end_idx]
+        df_page = df.iloc[start_idx:end_idx] if total_records > 0 else df
+        
         return {
             "data": df_page.to_dict(orient='records'),
             "pagination": {
@@ -215,10 +281,22 @@ def get_other_sources_filtered(
                 "total_pages": total_pages,
                 "has_next": page < total_pages,
                 "has_previous": page > 1
+            },
+            "filters_applied": {
+                "commodity": commodity,
+                "location": location,
+                "min_price": min_price,
+                "max_price": max_price,
+                "start_date": start_date,
+                "end_date": end_date
             }
         }
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Filtered other sources failed: {str(e)}")
+        # Better error reporting
+        import traceback
+        error_detail = f"Filtered other sources failed: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 @app.get("/intelligence/{commodity}")
@@ -230,52 +308,124 @@ def get_intelligence(commodity: str):
 
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets", exact: bool = False):
+    """
+    Analysis endpoint for Kasuwa internal prices
+    
+    Parameters:
+    - commodity: Commodity to search for
+    - month: Month name (e.g., "January")
+    - market: Market name or "All Markets"
+    - exact: If True, use exact match. If False, use partial match (default)
+    
+    Returns:
+    - chart_data: List of price records for charting
+    - metrics: Price statistics (avg, max, min) for both kg and bag
+    - strategic_sourcing: Best buy and worst market recommendations
+    
+    Examples:
+    - /analysis?commodity=Maize&month=January&exact=true
+    - /analysis?commodity=Cowpea Brown&month=January&market=All Markets&exact=true
+    """
     print(f"DEBUG: Received commodity='{commodity}', month='{month}', market='{market}', exact={exact}")
+    
+    # Fetch data
     df = fetch_data()
     print(f"DEBUG: Total records before filtering: {len(df)}")
+    
+    # Process dates
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['month_name'] = df['start_time'].dt.strftime('%B')
+    
+    # Filter by commodity
     if commodity:
         if exact:
+            # Exact match - "Maize" only matches "Maize", not "Maize White"
             df = df[df['commodity'].str.lower() == commodity.lower()]
             print(f"DEBUG: Using EXACT match for '{commodity}': {len(df)} records")
         else:
+            # Partial match - "Maize" matches "Maize", "Maize White", etc.
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
             print(f"DEBUG: Using PARTIAL match for '{commodity}': {len(df)} records")
+    
+    # Filter by month
     df = df[df['month_name'].str.lower() == month.lower()]
     print(f"DEBUG: After month filter ({month}): {len(df)} records")
+    
+    # Filter by market if specified
     if market != "All Markets":
         df = df[df['market'].str.lower() == market.lower()]
         print(f"DEBUG: After market filter ({market}): {len(df)} records")
+    
+    # Handle empty results
     if df.empty:
         print("DEBUG: No data found after filtering!")
-        return {"chart_data": [], "metrics": {"avg": 0, "max": 0, "min": 0}}
+        return {
+            "chart_data": [],
+            "metrics": {
+                "price_per_kg": {
+                    "avg": 0,
+                    "max": 0,
+                    "min": 0
+                },
+                "price_per_bag": {
+                    "avg": 0,
+                    "max": 0,
+                    "min": 0
+                }
+            },
+            "strategic_sourcing": None
+        }
+    
+    # Convert prices to numeric
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
     df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
+    
+    # Debug info
     unique_commodities = df['commodity'].unique().tolist()
     print(f"DEBUG: Unique commodities in result: {unique_commodities}")
+    
+    # Calculate Strategic Sourcing (Best Buy & Worst Market)
     strategic_sourcing = None
     if not df.empty and len(df['market'].unique()) > 1:
+        # Group by market and calculate average prices
         market_avg = df.groupby('market').agg({
             'price_per_kg': 'mean',
             'price_per_bag': 'mean'
         }).reset_index()
-        cheapest_idx = market_avg['price_per_kg'].idxmin()
-        expensive_idx = market_avg['price_per_kg'].idxmax()
-        strategic_sourcing = {
-            "best_buy": {
-                "market": market_avg.loc[cheapest_idx, 'market'],
-                "price_per_kg": round(float(market_avg.loc[cheapest_idx, 'price_per_kg']), 2),
-                "price_per_bag": round(float(market_avg.loc[cheapest_idx, 'price_per_bag']), 2)
-            },
-            "worst_market": {
-                "market": market_avg.loc[expensive_idx, 'market'],
-                "price_per_kg": round(float(market_avg.loc[expensive_idx, 'price_per_kg']), 2),
-                "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2)
+        
+        # Remove markets with 0 prices
+        market_avg = market_avg[
+            (market_avg['price_per_kg'] > 0) & 
+            (market_avg['price_per_bag'] > 0)
+        ]
+        
+        if not market_avg.empty:
+            # Find cheapest and most expensive markets
+            cheapest_idx = market_avg['price_per_kg'].idxmin()
+            expensive_idx = market_avg['price_per_kg'].idxmax()
+            
+            strategic_sourcing = {
+                "best_buy": {
+                    "market": market_avg.loc[cheapest_idx, 'market'],
+                    "price_per_kg": round(float(market_avg.loc[cheapest_idx, 'price_per_kg']), 2),
+                    "price_per_bag": round(float(market_avg.loc[cheapest_idx, 'price_per_bag']), 2)
+                },
+                "worst_market": {
+                    "market": market_avg.loc[expensive_idx, 'market'],
+                    "price_per_kg": round(float(market_avg.loc[expensive_idx, 'price_per_kg']), 2),
+                    "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2)
+                }
             }
-        }
+    
+    # Prepare chart data
+    chart_data_df = df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].copy()
+    chart_data_df['start_time'] = chart_data_df['start_time'].astype(str)
+    chart_data_df['price_per_kg'] = chart_data_df['price_per_kg'].astype(str)
+    chart_data_df['price_per_bag'] = chart_data_df['price_per_bag'].astype(str)
+    
+    # Return complete analysis
     return {
-        "chart_data": df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].astype(str).to_dict(orient='records'),
+        "chart_data": chart_data_df.to_dict(orient='records'),
         "metrics": {
             "price_per_kg": {
                 "avg": round(float(df['price_per_kg'].mean()), 2),
