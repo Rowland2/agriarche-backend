@@ -1010,30 +1010,39 @@ try:
             st.sidebar.markdown("---")
             st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
-            # CHANGE 1: Get filters from /filters/all endpoint for better performance
+            # Get commodities from dedicated API endpoint for better performance and consistency
             try:
-                filters_response = requests.get(f"{BASE_URL}/filters/all", headers=HEADERS, timeout=10)
+                filters_response = requests.get(
+                    f"{BASE_URL}/filters/other-sources-commodities",
+                    headers=HEADERS,
+                    timeout=10
+                )
                 if filters_response.status_code == 200:
-                    all_filters = filters_response.json()
-                    
-                    # Use filters from endpoint
+                    filters_data = filters_response.json()
+                    # Use EXACT names from database - DO NOT MODIFY!
+                    os_commodities = ["All"] + filters_data['commodities']
+                else:
+                    # Fallback: get from current data
+                    os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+            except Exception as e:
+                # Fallback: get from current data
+                os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
+
+            # Get locations from /filters/all endpoint
+            try:
+                loc_filters_response = requests.get(f"{BASE_URL}/filters/all", headers=HEADERS, timeout=10)
+                if loc_filters_response.status_code == 200:
+                    all_filters = loc_filters_response.json()
                     if 'other_sources' in all_filters:
-                        os_commodities = ["All"] + all_filters['other_sources']['commodities']
                         os_locations = ["All"] + all_filters['other_sources']['locations']
                     else:
-                        # Fallback to data-based filters
-                        os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
                         os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
                 else:
-                    # Fallback to data-based filters
-                    os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
                     os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
             except:
-                # Fallback to data-based filters
-                os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
                 os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
 
-            # Independent Commodity filter for Other sources
+            # Independent Commodity filter for Other sources - display EXACT database values
             selected_os_comm = st.sidebar.selectbox(
                 "Other sources Commodity", 
                 os_commodities, 
@@ -1213,12 +1222,12 @@ try:
                 
                 with os_nav_col1:
                     if os_pagination.get('has_previous', False):
-                        if st.button(" Previous", key="os_prev"):
+                        if st.button("⬅️ Previous", key="os_prev"):
                             st.rerun()
                 
                 with os_nav_col3:
                     if os_pagination.get('has_next', False):
-                        if st.button("Next ", key="os_next"):
+                        if st.button("Next ➡️", key="os_next"):
                             st.rerun()
             else:
                 st.warning("⚠️ No data matches your filter criteria.")
@@ -1257,7 +1266,6 @@ try:
         
 except Exception as e:
     st.error(f"Other Sources Error: {e}")
-
 # =====================================================
 # 11. FOOTER
 # =====================================================
