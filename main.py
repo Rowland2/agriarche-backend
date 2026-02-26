@@ -24,8 +24,9 @@ origins_dev = [
 
 origins_prod = [
     "https://agriarche-pricing-pfadctddnsfn2mqob8snwe.streamlit.app",
-    "https://www.gofarmrate.com",
+    "https://app.kasuwa.com",
     "https://app.kasuwa.com/dashboard/sourcing-insights",
+    "https://https://devext.kasuwa.com",
 ]
 
 allowed_origins = origins_dev + origins_prod
@@ -1043,4 +1044,3 @@ def bulk_upload_other_sources(records: List[OtherSourceRecord], token: str = Dep
         return {"status": "success", "message": f"Added {len(records)} other sources records"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
-        
