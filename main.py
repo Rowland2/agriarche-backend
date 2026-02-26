@@ -15,9 +15,9 @@ app = FastAPI(title="Agriarche Data Hub")
 
 origins_dev = [
     "http://localhost:3000",
-    "http://localhost:5173",  # Vite (tech team's dev server)
-    "http://localhost:8080",  # Vue
-    "http://localhost:4200",  # Angular
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://localhost:4200",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
 ]
@@ -58,16 +58,154 @@ engine = create_engine(DATABASE_URL)
 API_KEY = "Agriarche_Internal_Key_2026"
 api_key_header = APIKeyHeader(name="access_token")
 
-# --- CROP INTELLIGENCE DATA ---
+# --- ENHANCED CROP INTELLIGENCE DATA ---
 CROP_INTELLIGENCE = {
-    "maize white": "Maize is a staple energy source. Current trends show price stability due to recent harvests.",
-    "soya beans": "High demand for poultry feed continues to drive soy prices globally and locally.",
-    "rice paddy": "Local rice production is increasing; keep an eye on milling costs and fuel prices for transport.",
-    "cowpea white": "A major protein source. Prices typically fluctuate based on storage availability in the North.",
-    "groundnut gargaja": "A key oilseed. Market volume is steady, with strong interest from local processors.",
-    "millet": "Resilient to dry weather, millet remains a vital food security crop in arid regions.",
-    "sorghum red": "Primarily used for industrial brewing and local flour; demand remains consistent."
+    "soya beans": {
+        "desc": "A raw leguminous crop used for oil and feed.",
+        "markets": "Mubi, Giwa, and Kumo",
+        "abundance": "Nov, Dec, and April",
+        "note": "A key industrial driver for the poultry and vegetable oil sectors."
+    },
+    "soybeans": {
+        "desc": "A raw leguminous crop used for oil and feed.",
+        "markets": "Mubi, Giwa, and Kumo",
+        "abundance": "Nov, Dec, and April",
+        "note": "A key industrial driver for the poultry and vegetable oil sectors."
+    },
+    "brown cowpea": {
+        "desc": "Protein-rich legume popular in local diets.",
+        "markets": "Dawanau and Potiskum",
+        "abundance": "Oct through Jan",
+        "note": "Supply depends on Northern storage."
+    },
+    "cowpea brown": {
+        "desc": "Protein-rich legume popular in local diets.",
+        "markets": "Dawanau and Potiskum",
+        "abundance": "Oct through Jan",
+        "note": "Supply depends on Northern storage."
+    },
+    "white cowpea": {
+        "desc": "Staple bean variety used for commercial flour.",
+        "markets": "Dawanau and Bodija",
+        "abundance": "Oct and Nov",
+        "note": "High demand in South drives prices."
+    },
+    "cowpea white": {
+        "desc": "Staple bean variety used for commercial flour.",
+        "markets": "Dawanau and Bodija",
+        "abundance": "Oct and Nov",
+        "note": "High demand in South drives prices."
+    },
+    "honey beans": {
+        "desc": "Premium sweet brown beans (Oloyin).",
+        "markets": "Oyingbo and Dawanau",
+        "abundance": "Oct to Dec",
+        "note": "Often carries a price premium."
+    },
+    "white maize": {
+        "desc": "Primary cereal crop for food and industry.",
+        "markets": "Giwa, Makarfi, and Funtua",
+        "abundance": "Sept to Nov",
+        "note": "Correlates strongly with Sorghum trends."
+    },
+    "maize white": {
+        "desc": "Primary cereal crop for food and industry.",
+        "markets": "Giwa, Makarfi, and Funtua",
+        "abundance": "Sept to Nov",
+        "note": "Correlates strongly with Sorghum trends."
+    },
+    "rice paddy": {
+        "desc": "Raw rice before milling/processing.",
+        "markets": "Argungu and Kano",
+        "abundance": "Nov and Dec",
+        "note": "Foundation for processed rice pricing."
+    },
+    "paddy rice": {
+        "desc": "Raw rice before milling/processing.",
+        "markets": "Argungu and Kano",
+        "abundance": "Nov and Dec",
+        "note": "Foundation for processed rice pricing."
+    },
+    "processed rice": {
+        "desc": "Milled and polished local rice.",
+        "markets": "Kano, Lagos, and Onitsha",
+        "abundance": "Year-round",
+        "note": "Price fluctuates with fuel/milling costs."
+    },
+    "rice processed": {
+        "desc": "Milled and polished local rice.",
+        "markets": "Kano, Lagos, and Onitsha",
+        "abundance": "Year-round",
+        "note": "Price fluctuates with fuel/milling costs."
+    },
+    "red sorghum": {
+        "desc": "Drought-resistant grain staple.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Market substitute for Maize."
+    },
+    "sorghum red": {
+        "desc": "Drought-resistant grain staple.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Market substitute for Maize."
+    },
+    "white sorghum": {
+        "desc": "Drought-resistant white grain variety.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Premium variety for food processing."
+    },
+    "sorghum white": {
+        "desc": "Drought-resistant white grain variety.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Premium variety for food processing."
+    },
+    "yellow sorghum": {
+        "desc": "Yellow grain sorghum variety.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Used for brewing and animal feed."
+    },
+    "sorghum yellow": {
+        "desc": "Yellow grain sorghum variety.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Used for brewing and animal feed."
+    },
+    "sorghum": {
+        "desc": "General sorghum variety.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Dec and Jan",
+        "note": "Versatile grain for food and industry."
+    },
+    "millet": {
+        "desc": "Fast-growing cereal for the lean season.",
+        "markets": "Dawanau and Potiskum",
+        "abundance": "Sept and Oct",
+        "note": "First harvest after rainy season."
+    },
+    "groundnut gargaja": {
+        "desc": "Local peanut variety for oil extraction.",
+        "markets": "Dawanau and Gombe",
+        "abundance": "Oct and Nov",
+        "note": "Sahel region specialty."
+    },
+    "groundnut kampala": {
+        "desc": "Large, premium roasting groundnuts.",
+        "markets": "Kano and Dawanau",
+        "abundance": "Oct and Nov",
+        "note": "Higher oil content than Gargaja."
+    },
+    "groundnuts (peanuts)": {
+        "desc": "General groundnut/peanut variety.",
+        "markets": "Northern markets",
+        "abundance": "Oct and Nov",
+        "note": "Key oilseed crop with diverse uses."
+    }
 }
+
 
 @app.get("/")
 def home():
@@ -163,8 +301,6 @@ def get_other_sources(
         raise HTTPException(status_code=500, detail=f"Other sources fetch failed: {str(e)}")
 
 
-# Replace your /other-sources/filtered endpoint with this improved version:
-
 @app.get("/other-sources/filtered")
 def get_other_sources_filtered(
     commodity: Optional[str] = None,
@@ -176,27 +312,9 @@ def get_other_sources_filtered(
     page: Optional[int] = 1,
     page_size: Optional[int] = 100
 ):
-    """
-    Get filtered other sources data with pagination
-    
-    Parameters:
-    - commodity: Filter by commodity (partial match)
-    - location: Filter by location (partial match)  
-    - min_price: Minimum price
-    - max_price: Maximum price
-    - start_date: Start date (YYYY-MM-DD)
-    - end_date: End date (YYYY-MM-DD)
-    - page: Page number
-    - page_size: Records per page
-    
-    Example:
-    /other-sources/filtered?commodity=Maize&location=Kaduna&page=1&page_size=50
-    """
     try:
-        # Fetch all other sources data
         df = fetch_other_sources_data()
-        
-        # Handle empty dataframe
+
         if df.empty:
             return {
                 "data": [],
@@ -213,65 +331,51 @@ def get_other_sources_filtered(
                     "location": location
                 }
             }
-        
-        # Convert date column
+
         if 'date' in df.columns:
             df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        
-        # Apply commodity filter
+
         if commodity:
-            # Case-insensitive partial match
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        
-        # Apply location filter
+
         if location:
-            # Case-insensitive partial match
             df = df[df['location'].str.contains(location, case=False, na=False)]
-        
-        # Apply price filters
+
         if min_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] >= min_price]
-        
+
         if max_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] <= max_price]
-        
-        # Apply date filters
+
         if start_date:
             df = df[df['date'] >= pd.to_datetime(start_date)]
-        
+
         if end_date:
             df = df[df['date'] <= pd.to_datetime(end_date)]
-        
-        # Convert date back to string for JSON
+
         if 'date' in df.columns:
             df['date'] = df['date'].astype(str)
-        
-        # Ensure required columns exist
+
         required_cols = ['date', 'commodity', 'location', 'unit', 'price']
         for col in required_cols:
             if col not in df.columns:
                 df[col] = ''
-        
-        # Select only required columns
         df = df[required_cols]
-        
-        # Calculate pagination
+
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
-        
-        # Validate page number
+
         if page < 1:
             page = 1
         if total_pages > 0 and page > total_pages:
             page = total_pages
-        
-        # Apply pagination
+
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         df_page = df.iloc[start_idx:end_idx] if total_records > 0 else df
-        
+
         return {
             "data": df_page.to_dict(orient='records'),
             "pagination": {
@@ -291,9 +395,8 @@ def get_other_sources_filtered(
                 "end_date": end_date
             }
         }
-    
+
     except Exception as e:
-        # Better error reporting
         import traceback
         error_detail = f"Filtered other sources failed: {str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=error_detail)
@@ -301,109 +404,86 @@ def get_other_sources_filtered(
 
 @app.get("/intelligence/{commodity}")
 def get_intelligence(commodity: str):
-    """Provides market descriptions for the Streamlit info box."""
-    desc = CROP_INTELLIGENCE.get(commodity.lower(), "Market intelligence currently being updated for this commodity.")
-    return {"info": {"desc": desc}}
+    """
+    Get detailed market intelligence for a commodity.
+    Returns description, key markets, abundance periods, and notes.
+    """
+    commodity_lower = commodity.lower().strip()
+
+    info = CROP_INTELLIGENCE.get(
+        commodity_lower,
+        {
+            "desc": "Market intelligence currently being updated for this commodity.",
+            "markets": "Multiple Northern hubs",
+            "abundance": "Seasonal",
+            "note": "Price trends are being monitored."
+        }
+    )
+
+    return {
+        "commodity": commodity,
+        "intelligence": info
+    }
 
 
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets", exact: bool = False):
-    """
-    Analysis endpoint for Kasuwa internal prices
-    
-    Parameters:
-    - commodity: Commodity to search for
-    - month: Month name (e.g., "January")
-    - market: Market name or "All Markets"
-    - exact: If True, use exact match. If False, use partial match (default)
-    
-    Returns:
-    - chart_data: List of price records for charting
-    - metrics: Price statistics (avg, max, min) for both kg and bag
-    - strategic_sourcing: Best buy and worst market recommendations
-    
-    Examples:
-    - /analysis?commodity=Maize&month=January&exact=true
-    - /analysis?commodity=Cowpea Brown&month=January&market=All Markets&exact=true
-    """
     print(f"DEBUG: Received commodity='{commodity}', month='{month}', market='{market}', exact={exact}")
-    
-    # Fetch data
+
     df = fetch_data()
     print(f"DEBUG: Total records before filtering: {len(df)}")
-    
-    # Process dates
+
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['month_name'] = df['start_time'].dt.strftime('%B')
-    
-    # Filter by commodity
+
     if commodity:
         if exact:
-            # Exact match - "Maize" only matches "Maize", not "Maize White"
             df = df[df['commodity'].str.lower() == commodity.lower()]
             print(f"DEBUG: Using EXACT match for '{commodity}': {len(df)} records")
         else:
-            # Partial match - "Maize" matches "Maize", "Maize White", etc.
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
             print(f"DEBUG: Using PARTIAL match for '{commodity}': {len(df)} records")
-    
-    # Filter by month
+
     df = df[df['month_name'].str.lower() == month.lower()]
     print(f"DEBUG: After month filter ({month}): {len(df)} records")
-    
-    # Filter by market if specified
+
     if market != "All Markets":
         df = df[df['market'].str.lower() == market.lower()]
         print(f"DEBUG: After market filter ({market}): {len(df)} records")
-    
-    # Handle empty results
+
     if df.empty:
         print("DEBUG: No data found after filtering!")
         return {
             "chart_data": [],
             "metrics": {
-                "price_per_kg": {
-                    "avg": 0,
-                    "max": 0,
-                    "min": 0
-                },
-                "price_per_bag": {
-                    "avg": 0,
-                    "max": 0,
-                    "min": 0
-                }
+                "price_per_kg": {"avg": 0, "max": 0, "min": 0},
+                "price_per_bag": {"avg": 0, "max": 0, "min": 0}
             },
             "strategic_sourcing": None
         }
-    
-    # Convert prices to numeric
+
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
     df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
-    
-    # Debug info
+
     unique_commodities = df['commodity'].unique().tolist()
     print(f"DEBUG: Unique commodities in result: {unique_commodities}")
-    
-    # Calculate Strategic Sourcing (Best Buy & Worst Market)
+
     strategic_sourcing = None
     if not df.empty and len(df['market'].unique()) > 1:
-        # Group by market and calculate average prices
         market_avg = df.groupby('market').agg({
             'price_per_kg': 'mean',
             'price_per_bag': 'mean'
         }).reset_index()
-        
-        # Remove markets with 0 prices
+
         market_avg = market_avg[
-            (market_avg['price_per_kg'] > 0) & 
+            (market_avg['price_per_kg'] > 0) &
             (market_avg['price_per_bag'] > 0)
         ]
-        
+
         if not market_avg.empty:
-            # Find cheapest and most expensive markets
             cheapest_idx = market_avg['price_per_kg'].idxmin()
             expensive_idx = market_avg['price_per_kg'].idxmax()
-            
+
             strategic_sourcing = {
                 "best_buy": {
                     "market": market_avg.loc[cheapest_idx, 'market'],
@@ -416,14 +496,12 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
                     "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2)
                 }
             }
-    
-    # Prepare chart data
+
     chart_data_df = df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].copy()
     chart_data_df['start_time'] = chart_data_df['start_time'].astype(str)
     chart_data_df['price_per_kg'] = chart_data_df['price_per_kg'].astype(str)
     chart_data_df['price_per_bag'] = chart_data_df['price_per_bag'].astype(str)
-    
-    # Return complete analysis
+
     return {
         "chart_data": chart_data_df.to_dict(orient='records'),
         "metrics": {
@@ -608,7 +686,6 @@ def get_all_filters():
 def get_market_comparison(commodity: str, month: str):
     """Get market comparison including BOTH internal and external sources"""
     try:
-        # 1. Internal prices (Kasuwa data)
         df_internal = fetch_data()
         df_internal['start_time'] = pd.to_datetime(df_internal['start_time'])
         df_internal['month_name'] = df_internal['start_time'].dt.strftime('%B')
@@ -630,7 +707,6 @@ def get_market_comparison(commodity: str, month: str):
                     "max_price": float(mkt_data['price_per_kg'].max())
                 })
 
-        # 2. External sources
         df_external = fetch_other_sources_data()
         df_external['date'] = pd.to_datetime(df_external['date'], errors='coerce')
         df_external['month_name'] = df_external['date'].dt.strftime('%B')
@@ -655,7 +731,6 @@ def get_market_comparison(commodity: str, month: str):
                     "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max())
                 })
 
-        # 3. Combine and sort
         all_markets = internal_markets + external_markets
         all_markets.sort(key=lambda x: x['avg_price_per_kg'])
 
@@ -670,6 +745,146 @@ def get_market_comparison(commodity: str, month: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Market comparison failed: {str(e)}")
+
+
+# ============================================================
+# TWO-MARKET COMPARISON ENDPOINT (NEW)
+# ============================================================
+
+@app.get("/compare-two-markets")
+def compare_two_markets(
+    commodity: str,
+    month: str,
+    market1: str,
+    market2: str,
+    source1: str = "internal",
+    source2: str = "internal"
+):
+    """
+    Compare prices between two specific markets.
+
+    Parameters:
+    - commodity: Commodity name
+    - month: Month name
+    - market1: First market name
+    - market2: Second market name
+    - source1: "internal" or "external" (default: "internal")
+    - source2: "internal" or "external" (default: "internal")
+
+    Examples:
+    - /compare-two-markets?commodity=Cowpea Brown&month=January&market1=Potiskum&market2=Lashe Money
+    - /compare-two-markets?commodity=Soybeans&month=January&market1=Potiskum&market2=Kasuwan Magani Market&source1=internal&source2=external
+    - /compare-two-markets?commodity=Soybeans&month=January&market1=Achau Market&market2=Dawanau Market&source1=external&source2=external
+    """
+    try:
+        def get_market_data(commodity, month, market, source):
+            if source.lower() == "internal":
+                df = fetch_data()
+                df['start_time'] = pd.to_datetime(df['start_time'])
+                df['month_name'] = df['start_time'].dt.strftime('%B')
+
+                df_filtered = df[
+                    (df['commodity'].str.contains(commodity, case=False, na=False)) &
+                    (df['month_name'].str.lower() == month.lower()) &
+                    (df['market'].str.lower() == market.lower())
+                ]
+
+                if df_filtered.empty:
+                    return None
+
+                df_filtered['price_per_kg'] = pd.to_numeric(df_filtered['price_per_kg'], errors='coerce')
+                df_filtered['price_per_bag'] = pd.to_numeric(df_filtered['price_per_bag'], errors='coerce')
+
+                return {
+                    "market": market,
+                    "source": "Internal (Kasuwa)",
+                    "avg_price_per_kg": round(float(df_filtered['price_per_kg'].mean()), 2),
+                    "avg_price_per_bag": round(float(df_filtered['price_per_bag'].mean()), 2),
+                    "min_price_per_kg": float(df_filtered['price_per_kg'].min()),
+                    "max_price_per_kg": float(df_filtered['price_per_kg'].max()),
+                    "record_count": len(df_filtered)
+                }
+
+            else:  # external
+                df = fetch_other_sources_data()
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                df['month_name'] = df['date'].dt.strftime('%B')
+
+                df_filtered = df[
+                    (df['commodity'].str.contains(commodity, case=False, na=False)) &
+                    (df['month_name'].str.lower() == month.lower()) &
+                    (df['location'].str.contains(market, case=False, na=False))
+                ]
+
+                if df_filtered.empty:
+                    return None
+
+                df_filtered['price'] = pd.to_numeric(df_filtered['price'], errors='coerce')
+
+                is_bag = df_filtered['unit'].iloc[0] == 'bag' if not df_filtered.empty else False
+                avg_price = df_filtered['price'].mean()
+                avg_kg = avg_price / 100 if is_bag else avg_price
+
+                return {
+                    "market": market,
+                    "source": "External",
+                    "avg_price_per_kg": round(float(avg_kg), 2),
+                    "avg_price_per_bag": round(float(avg_price if is_bag else avg_kg * 100), 2),
+                    "min_price_per_kg": float(df_filtered['price'].min() / 100 if is_bag else df_filtered['price'].min()),
+                    "max_price_per_kg": float(df_filtered['price'].max() / 100 if is_bag else df_filtered['price'].max()),
+                    "record_count": len(df_filtered)
+                }
+
+        market1_data = get_market_data(commodity, month, market1, source1)
+        market2_data = get_market_data(commodity, month, market2, source2)
+
+        if not market1_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No data found for {market1} ({source1}) in {month}"
+            )
+
+        if not market2_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No data found for {market2} ({source2}) in {month}"
+            )
+
+        price_diff_kg = market2_data['avg_price_per_kg'] - market1_data['avg_price_per_kg']
+        price_diff_bag = market2_data['avg_price_per_bag'] - market1_data['avg_price_per_bag']
+        percentage_diff = (price_diff_kg / market1_data['avg_price_per_kg'] * 100) if market1_data['avg_price_per_kg'] > 0 else 0
+
+        if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg']:
+            cheaper_market = market1
+            more_expensive = market2
+        else:
+            cheaper_market = market2
+            more_expensive = market1
+
+        return {
+            "commodity": commodity,
+            "month": month,
+            "market1": market1_data,
+            "market2": market2_data,
+            "comparison": {
+                "cheaper_market": cheaper_market,
+                "more_expensive_market": more_expensive,
+                "price_difference_per_kg": round(abs(price_diff_kg), 2),
+                "price_difference_per_bag": round(abs(price_diff_bag), 2),
+                "percentage_difference": round(abs(percentage_diff), 2),
+                "savings_per_kg": round(abs(price_diff_kg), 2),
+                "savings_per_bag": round(abs(price_diff_bag), 2)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        raise HTTPException(
+            status_code=500,
+            detail=f"Comparison failed: {str(e)}\n{traceback.format_exc()}"
+        )
 
 
 # ============================================================
