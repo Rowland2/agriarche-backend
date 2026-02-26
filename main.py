@@ -216,6 +216,7 @@ def home():
         "cors_enabled": True
     }
 
+
 def fetch_data():
     """Fetch Kasuwa internal prices data"""
     try:
@@ -223,12 +224,14 @@ def fetch_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cloud Database Error: {str(e)}")
 
+
 def fetch_other_sources_data():
     """Fetch other sources (scraped) data"""
     try:
         return pd.read_sql("SELECT * FROM other_sources ORDER BY date DESC", engine)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Other Sources Database Error: {str(e)}")
+
 
 @app.get("/prices")
 def get_all_prices(
@@ -772,9 +775,9 @@ def compare_two_markets(
     - source2: "internal" or "external" (default: "internal")
 
     Examples:
-    - /compare-two-markets?commodity=Cowpea Brown&month=January&market1=Potiskum&market2=Lashe Money
-    - /compare-two-markets?commodity=Soybeans&month=January&market1=Potiskum&market2=Kasuwan Magani Market&source1=internal&source2=external
-    - /compare-two-markets?commodity=Soybeans&month=January&market1=Achau Market&market2=Dawanau Market&source1=external&source2=external
+    - /compare-two-markets?commodity=Cowpea Brown&month=January&market1=Lashe Money&market2=Potiskum
+    - /compare-two-markets?commodity=Soybeans&month=January&market1=Potiskum&market2=Dawanau Market, Kano State&source1=internal&source2=external
+    - /compare-two-markets?commodity=Soybeans&month=January&market1=Dawanau Market, Kano State&market2=Achau Market, Kaduna State&source1=external&source2=external
     """
     try:
         def get_market_data(commodity, month, market, source):
@@ -783,26 +786,49 @@ def compare_two_markets(
                 df['start_time'] = pd.to_datetime(df['start_time'])
                 df['month_name'] = df['start_time'].dt.strftime('%B')
 
-                df_filtered = df[
-                    (df['commodity'].str.contains(commodity, case=False, na=False)) &
-                    (df['month_name'].str.lower() == month.lower()) &
-                    (df['market'].str.lower() == market.lower())
+                # Check commodity exists
+                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+                if commodity_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"Commodity '{commodity}' not found in internal data",
+                        "available_commodities": sorted(df['commodity'].unique().tolist())
+                    }
+
+                # Check market carries this commodity
+                market_commodity_df = commodity_df[
+                    commodity_df['market'].str.lower() == market.lower()
                 ]
+                if market_commodity_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"'{market}' does not carry '{commodity}' in internal data",
+                        "markets_that_carry_this_commodity": sorted(commodity_df['market'].unique().tolist())
+                    }
 
-                if df_filtered.empty:
-                    return None
+                # Check month has data
+                month_df = market_commodity_df[
+                    market_commodity_df['month_name'].str.lower() == month.lower()
+                ]
+                if month_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"'{market}' has no '{commodity}' data for {month}",
+                        "available_months_for_this_market": sorted(market_commodity_df['month_name'].unique().tolist())
+                    }
 
-                df_filtered['price_per_kg'] = pd.to_numeric(df_filtered['price_per_kg'], errors='coerce')
-                df_filtered['price_per_bag'] = pd.to_numeric(df_filtered['price_per_bag'], errors='coerce')
+                month_df['price_per_kg'] = pd.to_numeric(month_df['price_per_kg'], errors='coerce')
+                month_df['price_per_bag'] = pd.to_numeric(month_df['price_per_bag'], errors='coerce')
 
                 return {
+                    "found": True,
                     "market": market,
                     "source": "Internal (Kasuwa)",
-                    "avg_price_per_kg": round(float(df_filtered['price_per_kg'].mean()), 2),
-                    "avg_price_per_bag": round(float(df_filtered['price_per_bag'].mean()), 2),
-                    "min_price_per_kg": float(df_filtered['price_per_kg'].min()),
-                    "max_price_per_kg": float(df_filtered['price_per_kg'].max()),
-                    "record_count": len(df_filtered)
+                    "avg_price_per_kg": round(float(month_df['price_per_kg'].mean()), 2),
+                    "avg_price_per_bag": round(float(month_df['price_per_bag'].mean()), 2),
+                    "min_price_per_kg": float(month_df['price_per_kg'].min()),
+                    "max_price_per_kg": float(month_df['price_per_kg'].max()),
+                    "record_count": len(month_df)
                 }
 
             else:  # external
@@ -810,49 +836,73 @@ def compare_two_markets(
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 df['month_name'] = df['date'].dt.strftime('%B')
 
-                df_filtered = df[
-                    (df['commodity'].str.contains(commodity, case=False, na=False)) &
-                    (df['month_name'].str.lower() == month.lower()) &
-                    (df['location'].str.contains(market, case=False, na=False))
+                # Check commodity exists
+                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+                if commodity_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"Commodity '{commodity}' not found in external data",
+                        "available_commodities": sorted(df['commodity'].unique().tolist())
+                    }
+
+                # Check location carries this commodity
+                market_commodity_df = commodity_df[
+                    commodity_df['location'].str.contains(market, case=False, na=False)
                 ]
+                if market_commodity_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"'{market}' does not carry '{commodity}' in external data",
+                        "locations_that_carry_this_commodity": sorted(commodity_df['location'].unique().tolist())
+                    }
 
-                if df_filtered.empty:
-                    return None
+                # Check month has data
+                month_df = market_commodity_df[
+                    market_commodity_df['month_name'].str.lower() == month.lower()
+                ]
+                if month_df.empty:
+                    return {
+                        "found": False,
+                        "error": f"'{market}' has no '{commodity}' data for {month}",
+                        "available_months_for_this_location": sorted(market_commodity_df['month_name'].unique().tolist())
+                    }
 
-                df_filtered['price'] = pd.to_numeric(df_filtered['price'], errors='coerce')
-
-                is_bag = df_filtered['unit'].iloc[0] == 'bag' if not df_filtered.empty else False
-                avg_price = df_filtered['price'].mean()
+                month_df['price'] = pd.to_numeric(month_df['price'], errors='coerce')
+                is_bag = month_df['unit'].iloc[0] == 'bag'
+                avg_price = month_df['price'].mean()
                 avg_kg = avg_price / 100 if is_bag else avg_price
 
                 return {
+                    "found": True,
                     "market": market,
                     "source": "External",
                     "avg_price_per_kg": round(float(avg_kg), 2),
                     "avg_price_per_bag": round(float(avg_price if is_bag else avg_kg * 100), 2),
-                    "min_price_per_kg": float(df_filtered['price'].min() / 100 if is_bag else df_filtered['price'].min()),
-                    "max_price_per_kg": float(df_filtered['price'].max() / 100 if is_bag else df_filtered['price'].max()),
-                    "record_count": len(df_filtered)
+                    "min_price_per_kg": float(month_df['price'].min() / 100 if is_bag else month_df['price'].min()),
+                    "max_price_per_kg": float(month_df['price'].max() / 100 if is_bag else month_df['price'].max()),
+                    "record_count": len(month_df)
                 }
 
         market1_data = get_market_data(commodity, month, market1, source1)
         market2_data = get_market_data(commodity, month, market2, source2)
 
-        if not market1_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No data found for {market1} ({source1}) in {month}"
-            )
+        # If either market failed return helpful diagnostics instead of plain 404
+        if not market1_data.get("found") or not market2_data.get("found"):
+            return {
+                "success": False,
+                "commodity": commodity,
+                "month": month,
+                "market1_status": market1_data if not market1_data.get("found") else {"found": True, "market": market1},
+                "market2_status": market2_data if not market2_data.get("found") else {"found": True, "market": market2},
+                "tip": "Check 'available_months_for_this_market' or 'markets_that_carry_this_commodity' above for valid values."
+            }
 
-        if not market2_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No data found for {market2} ({source2}) in {month}"
-            )
-
+        # Both found — calculate comparison
         price_diff_kg = market2_data['avg_price_per_kg'] - market1_data['avg_price_per_kg']
         price_diff_bag = market2_data['avg_price_per_bag'] - market1_data['avg_price_per_bag']
-        percentage_diff = (price_diff_kg / market1_data['avg_price_per_kg'] * 100) if market1_data['avg_price_per_kg'] > 0 else 0
+        percentage_diff = (
+            price_diff_kg / market1_data['avg_price_per_kg'] * 100
+        ) if market1_data['avg_price_per_kg'] > 0 else 0
 
         if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg']:
             cheaper_market = market1
@@ -862,6 +912,7 @@ def compare_two_markets(
             more_expensive = market1
 
         return {
+            "success": True,
             "commodity": commodity,
             "month": month,
             "market1": market1_data,
@@ -877,8 +928,6 @@ def compare_two_markets(
             }
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         import traceback
         raise HTTPException(
@@ -994,3 +1043,4 @@ def bulk_upload_other_sources(records: List[OtherSourceRecord], token: str = Dep
         return {"status": "success", "message": f"Added {len(records)} other sources records"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
+        
