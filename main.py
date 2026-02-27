@@ -267,7 +267,8 @@ def get_all_prices(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
-        @app.get("/prices-with-change")
+
+@app.get("/prices-with-change")
 def get_prices_with_change(
     page: Optional[int] = 1,
     page_size: Optional[int] = 100,
@@ -275,32 +276,32 @@ def get_prices_with_change(
 ):
     """
     Get prices with percentage change calculation
-    
+
     Examples:
     - /prices-with-change?page=1&page_size=20
     - /prices-with-change?commodity=Brown Cowpea&page=1&page_size=20
     """
     try:
         df = fetch_data()
-        
+
         # Convert dates
         if 'start_time' in df.columns:
             df['start_time'] = pd.to_datetime(df['start_time'])
-        
+
         # Filter by commodity if provided
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        
+
         # Sort by commodity and date
         df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
-        
+
         # Calculate % change
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-        
+
         # Calculate change for each commodity (compare to previous record)
         df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
-        
+
         # Add change indicator
         def get_indicator(x):
             if pd.isna(x):
@@ -311,28 +312,28 @@ def get_prices_with_change(
                 return '📉'
             else:
                 return '➡️'
-        
+
         df['change_indicator'] = df['percent_change'].apply(get_indicator)
-        
+
         # Replace NaN with "N/A"
         df['percent_change'] = df['percent_change'].fillna('N/A').astype(str)
-        
+
         # Convert back to string for JSON
         df['start_time'] = df['start_time'].astype(str)
-        
+
         # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
-        
+
         if page < 1:
             page = 1
         if page > total_pages and total_pages > 0:
             page = total_pages
-        
+
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         df_page = df.iloc[start_idx:end_idx]
-        
+
         return {
             "data": df_page.to_dict(orient='records'),
             "pagination": {
@@ -510,27 +511,28 @@ def get_intelligence(commodity: str):
         "intelligence": info
     }
 
-    @app.get("/ai-market-advisor/{commodity}")
+
+@app.get("/ai-market-advisor/{commodity}")
 def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
     """
     Get AI-powered market recommendations and insights
-    
+
     This provides dynamic advice based on current price trends
-    
+
     Examples:
     - /ai-market-advisor/Brown Cowpea
     - /ai-market-advisor/Brown Cowpea?month=January
     """
     try:
         commodity_lower = commodity.lower().strip()
-        
+
         # Get current price data for the commodity
         df = fetch_data()
         df['start_time'] = pd.to_datetime(df['start_time'])
-        
+
         # Filter by commodity
         df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        
+
         # Filter by month if provided
         if month:
             df['month_name'] = df['start_time'].dt.strftime('%B')
@@ -538,7 +540,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         else:
             # Use last 30 days
             df_commodity = df_commodity[df_commodity['start_time'] >= df_commodity['start_time'].max() - pd.Timedelta(days=30)]
-        
+
         if df_commodity.empty:
             return {
                 "commodity": commodity,
@@ -546,20 +548,20 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
                 "confidence": "low",
                 "recommendations": []
             }
-        
+
         # Calculate price statistics
         df_commodity['price_per_kg'] = pd.to_numeric(df_commodity['price_per_kg'], errors='coerce')
-        
+
         avg_price = df_commodity['price_per_kg'].mean()
         std_dev = df_commodity['price_per_kg'].std()
-        
+
         # Find best and worst markets
         market_avg = df_commodity.groupby('market')['price_per_kg'].mean()
         best_market = market_avg.idxmin()
         worst_market = market_avg.idxmax()
         best_price = market_avg.min()
         worst_price = market_avg.max()
-        
+
         # Calculate price trend (last 7 days vs previous 7 days)
         if len(df_commodity) >= 14:
             sorted_data = df_commodity.sort_values('start_time')
@@ -570,7 +572,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         else:
             trend = "stable"
             trend_percent = 0
-        
+
         # Generate AI advice
         if trend == "rising":
             price_advice = f"Prices are trending upward ({trend_percent:.1f}% increase). Consider sourcing soon before further increases."
@@ -578,13 +580,13 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             price_advice = f"Prices are trending downward ({trend_percent:.1f}% decrease). You may benefit from waiting if possible."
         else:
             price_advice = "Prices are stable. Good time to source at predictable rates."
-        
+
         # Market recommendation
         savings = worst_price - best_price
         savings_percent = (savings / worst_price * 100) if worst_price > 0 else 0
-        
+
         market_advice = f"Buy from {best_market} (₦{best_price:.2f}/kg) and save ₦{savings:.2f}/kg ({savings_percent:.1f}%) compared to {worst_market}."
-        
+
         # Volatility assessment
         volatility = "high" if std_dev > avg_price * 0.2 else "moderate" if std_dev > avg_price * 0.1 else "low"
         volatility_advice = f"Market volatility is {volatility}. " + (
@@ -592,7 +594,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             else "Prices are relatively consistent across markets." if volatility == "low"
             else "Some price variation exists - shop around for best deals."
         )
-        
+
         return {
             "commodity": commodity,
             "advice": f"{price_advice} {market_advice} {volatility_advice}",
@@ -623,7 +625,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
                 "data_points": len(df_commodity)
             }
         }
-    
+
     except Exception as e:
         import traceback
         raise HTTPException(
@@ -954,7 +956,7 @@ def get_market_comparison(commodity: str, month: str):
 
 
 # ============================================================
-# TWO-MARKET COMPARISON ENDPOINT (NEW)
+# TWO-MARKET COMPARISON ENDPOINT
 # ============================================================
 
 @app.get("/compare-two-markets")
@@ -989,7 +991,6 @@ def compare_two_markets(
                 df['start_time'] = pd.to_datetime(df['start_time'])
                 df['month_name'] = df['start_time'].dt.strftime('%B')
 
-                # Check commodity exists
                 commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
                 if commodity_df.empty:
                     return {
@@ -998,7 +999,6 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
-                # Check market carries this commodity
                 market_commodity_df = commodity_df[
                     commodity_df['market'].str.lower() == market.lower()
                 ]
@@ -1009,7 +1009,6 @@ def compare_two_markets(
                         "markets_that_carry_this_commodity": sorted(commodity_df['market'].unique().tolist())
                     }
 
-                # Check month has data
                 month_df = market_commodity_df[
                     market_commodity_df['month_name'].str.lower() == month.lower()
                 ]
@@ -1039,7 +1038,6 @@ def compare_two_markets(
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 df['month_name'] = df['date'].dt.strftime('%B')
 
-                # Check commodity exists
                 commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
                 if commodity_df.empty:
                     return {
@@ -1048,7 +1046,6 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
-                # Check location carries this commodity
                 market_commodity_df = commodity_df[
                     commodity_df['location'].str.contains(market, case=False, na=False)
                 ]
@@ -1059,7 +1056,6 @@ def compare_two_markets(
                         "locations_that_carry_this_commodity": sorted(commodity_df['location'].unique().tolist())
                     }
 
-                # Check month has data
                 month_df = market_commodity_df[
                     market_commodity_df['month_name'].str.lower() == month.lower()
                 ]
@@ -1089,7 +1085,6 @@ def compare_two_markets(
         market1_data = get_market_data(commodity, month, market1, source1)
         market2_data = get_market_data(commodity, month, market2, source2)
 
-        # If either market failed return helpful diagnostics instead of plain 404
         if not market1_data.get("found") or not market2_data.get("found"):
             return {
                 "success": False,
@@ -1100,7 +1095,6 @@ def compare_two_markets(
                 "tip": "Check 'available_months_for_this_market' or 'markets_that_carry_this_commodity' above for valid values."
             }
 
-        # Both found — calculate comparison
         price_diff_kg = market2_data['avg_price_per_kg'] - market1_data['avg_price_per_kg']
         price_diff_bag = market2_data['avg_price_per_bag'] - market1_data['avg_price_per_bag']
         percentage_diff = (
