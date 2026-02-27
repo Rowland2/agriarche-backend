@@ -26,7 +26,7 @@ origins_prod = [
     "https://agriarche-pricing-pfadctddnsfn2mqob8snwe.streamlit.app",
     "https://app.kasuwa.com",
     "https://app.kasuwa.com/dashboard/sourcing-insights",
-    "https://https://devext.kasuwa.com/sourcing-insights",
+    "https://devext.kasuwa.com/dashboard/sourcing-insights",
 ]
 
 allowed_origins = origins_dev + origins_prod
