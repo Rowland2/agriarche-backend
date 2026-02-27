@@ -284,46 +284,68 @@ def get_prices_with_change(
     try:
         df = fetch_data()
 
+        if df.empty:
+            return {
+                "data": [],
+                "pagination": {
+                    "page": 1,
+                    "page_size": page_size,
+                    "total_records": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                }
+            }
+
         # Convert dates
-        if 'start_time' in df.columns:
-            df['start_time'] = pd.to_datetime(df['start_time'])
+        df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
 
         # Filter by commodity if provided
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
 
-        # Sort by commodity and date
+        if df.empty:
+            return {
+                "data": [],
+                "pagination": {
+                    "page": 1,
+                    "page_size": page_size,
+                    "total_records": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                }
+            }
+
+        # Sort by commodity and date (newest first)
         df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
 
-        # Calculate % change
+        # Convert price to numeric
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
 
-        # Calculate change for each commodity (compare to previous record)
+        # Calculate % change for each commodity
+        # This compares each row to the previous row within the same commodity
         df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
 
-        # Add change indicator
-        def get_indicator(x):
-            if pd.isna(x):
-                return '➡️'
-            elif x > 0:
-                return '📈'
-            elif x < 0:
-                return '📉'
-            else:
-                return '➡️'
+        # Add change indicator emoji
+        df['change_indicator'] = df['percent_change'].apply(
+            lambda x: '📈' if pd.notna(x) and x > 0
+            else '📉' if pd.notna(x) and x < 0
+            else '➡️'
+        )
 
-        df['change_indicator'] = df['percent_change'].apply(get_indicator)
+        # Replace NaN with "N/A" string
+        df['percent_change'] = df['percent_change'].apply(
+            lambda x: str(x) if pd.notna(x) else 'N/A'
+        )
 
-        # Replace NaN with "N/A"
-        df['percent_change'] = df['percent_change'].fillna('N/A').astype(str)
-
-        # Convert back to string for JSON
+        # Convert dates back to string for JSON
         df['start_time'] = df['start_time'].astype(str)
 
         # Pagination
         total_records = len(df)
-        total_pages = (total_records + page_size - 1) // page_size
+        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
 
         if page < 1:
             page = 1
@@ -345,7 +367,10 @@ def get_prices_with_change(
                 "has_previous": page > 1
             }
         }
+
     except Exception as e:
+        import traceback
+        print(f"Error in prices-with-change: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch prices: {str(e)}")
 
 
