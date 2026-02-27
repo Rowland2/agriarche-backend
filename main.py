@@ -267,6 +267,86 @@ def get_all_prices(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
+        @app.get("/prices-with-change")
+def get_prices_with_change(
+    page: Optional[int] = 1,
+    page_size: Optional[int] = 100,
+    commodity: Optional[str] = None
+):
+    """
+    Get prices with percentage change calculation
+    
+    Examples:
+    - /prices-with-change?page=1&page_size=20
+    - /prices-with-change?commodity=Brown Cowpea&page=1&page_size=20
+    """
+    try:
+        df = fetch_data()
+        
+        # Convert dates
+        if 'start_time' in df.columns:
+            df['start_time'] = pd.to_datetime(df['start_time'])
+        
+        # Filter by commodity if provided
+        if commodity:
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        
+        # Sort by commodity and date
+        df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
+        
+        # Calculate % change
+        df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
+        
+        # Calculate change for each commodity (compare to previous record)
+        df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
+        df['percent_change'] = df['percent_change'].round(2)
+        
+        # Add change indicator
+        def get_indicator(x):
+            if pd.isna(x):
+                return '➡️'
+            elif x > 0:
+                return '📈'
+            elif x < 0:
+                return '📉'
+            else:
+                return '➡️'
+        
+        df['change_indicator'] = df['percent_change'].apply(get_indicator)
+        
+        # Replace NaN with "N/A"
+        df['percent_change'] = df['percent_change'].fillna('N/A').astype(str)
+        
+        # Convert back to string for JSON
+        df['start_time'] = df['start_time'].astype(str)
+        
+        # Pagination
+        total_records = len(df)
+        total_pages = (total_records + page_size - 1) // page_size
+        
+        if page < 1:
+            page = 1
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+        
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        df_page = df.iloc[start_idx:end_idx]
+        
+        return {
+            "data": df_page.to_dict(orient='records'),
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_records": total_records,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_previous": page > 1
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch prices: {str(e)}")
+
 
 @app.get("/other-sources")
 def get_other_sources(
@@ -429,6 +509,127 @@ def get_intelligence(commodity: str):
         "commodity": commodity,
         "intelligence": info
     }
+
+    @app.get("/ai-market-advisor/{commodity}")
+def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
+    """
+    Get AI-powered market recommendations and insights
+    
+    This provides dynamic advice based on current price trends
+    
+    Examples:
+    - /ai-market-advisor/Brown Cowpea
+    - /ai-market-advisor/Brown Cowpea?month=January
+    """
+    try:
+        commodity_lower = commodity.lower().strip()
+        
+        # Get current price data for the commodity
+        df = fetch_data()
+        df['start_time'] = pd.to_datetime(df['start_time'])
+        
+        # Filter by commodity
+        df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        
+        # Filter by month if provided
+        if month:
+            df['month_name'] = df['start_time'].dt.strftime('%B')
+            df_commodity = df_commodity[df_commodity['month_name'].str.lower() == month.lower()]
+        else:
+            # Use last 30 days
+            df_commodity = df_commodity[df_commodity['start_time'] >= df_commodity['start_time'].max() - pd.Timedelta(days=30)]
+        
+        if df_commodity.empty:
+            return {
+                "commodity": commodity,
+                "advice": "Insufficient data for AI analysis. Please check back after more price data is collected.",
+                "confidence": "low",
+                "recommendations": []
+            }
+        
+        # Calculate price statistics
+        df_commodity['price_per_kg'] = pd.to_numeric(df_commodity['price_per_kg'], errors='coerce')
+        
+        avg_price = df_commodity['price_per_kg'].mean()
+        std_dev = df_commodity['price_per_kg'].std()
+        
+        # Find best and worst markets
+        market_avg = df_commodity.groupby('market')['price_per_kg'].mean()
+        best_market = market_avg.idxmin()
+        worst_market = market_avg.idxmax()
+        best_price = market_avg.min()
+        worst_price = market_avg.max()
+        
+        # Calculate price trend (last 7 days vs previous 7 days)
+        if len(df_commodity) >= 14:
+            sorted_data = df_commodity.sort_values('start_time')
+            recent_avg = sorted_data.tail(7)['price_per_kg'].mean()
+            previous_avg = sorted_data.iloc[-14:-7]['price_per_kg'].mean()
+            trend = "rising" if recent_avg > previous_avg else "falling" if recent_avg < previous_avg else "stable"
+            trend_percent = abs((recent_avg - previous_avg) / previous_avg * 100)
+        else:
+            trend = "stable"
+            trend_percent = 0
+        
+        # Generate AI advice
+        if trend == "rising":
+            price_advice = f"Prices are trending upward ({trend_percent:.1f}% increase). Consider sourcing soon before further increases."
+        elif trend == "falling":
+            price_advice = f"Prices are trending downward ({trend_percent:.1f}% decrease). You may benefit from waiting if possible."
+        else:
+            price_advice = "Prices are stable. Good time to source at predictable rates."
+        
+        # Market recommendation
+        savings = worst_price - best_price
+        savings_percent = (savings / worst_price * 100) if worst_price > 0 else 0
+        
+        market_advice = f"Buy from {best_market} (₦{best_price:.2f}/kg) and save ₦{savings:.2f}/kg ({savings_percent:.1f}%) compared to {worst_market}."
+        
+        # Volatility assessment
+        volatility = "high" if std_dev > avg_price * 0.2 else "moderate" if std_dev > avg_price * 0.1 else "low"
+        volatility_advice = f"Market volatility is {volatility}. " + (
+            "Prices vary significantly across markets - careful sourcing can yield major savings." if volatility == "high"
+            else "Prices are relatively consistent across markets." if volatility == "low"
+            else "Some price variation exists - shop around for best deals."
+        )
+        
+        return {
+            "commodity": commodity,
+            "advice": f"{price_advice} {market_advice} {volatility_advice}",
+            "confidence": "high" if len(df_commodity) >= 10 else "moderate" if len(df_commodity) >= 5 else "low",
+            "trend": trend,
+            "trend_percentage": round(trend_percent, 2),
+            "recommendations": [
+                {
+                    "type": "best_market",
+                    "market": best_market,
+                    "price_per_kg": round(float(best_price), 2),
+                    "reason": "Lowest average price"
+                },
+                {
+                    "type": "avoid_market",
+                    "market": worst_market,
+                    "price_per_kg": round(float(worst_price), 2),
+                    "reason": "Highest average price"
+                }
+            ],
+            "market_insights": {
+                "average_price": round(float(avg_price), 2),
+                "price_range": {
+                    "min": round(float(market_avg.min()), 2),
+                    "max": round(float(market_avg.max()), 2)
+                },
+                "volatility": volatility,
+                "data_points": len(df_commodity)
+            }
+        }
+    
+    except Exception as e:
+        import traceback
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI advisor failed: {str(e)}\n{traceback.format_exc()}"
+        )
 
 
 @app.get("/analysis")
