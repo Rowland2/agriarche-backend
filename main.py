@@ -517,61 +517,99 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
     """
     Get AI-powered market recommendations and insights
 
-    This provides dynamic advice based on current price trends
-
     Examples:
     - /ai-market-advisor/Brown Cowpea
     - /ai-market-advisor/Brown Cowpea?month=January
     """
     try:
-        commodity_lower = commodity.lower().strip()
-
-        # Get current price data for the commodity
+        # Get all price data
         df = fetch_data()
+
+        if df.empty:
+            return {
+                "commodity": commodity,
+                "advice": "No price data available yet. Please check back after data is collected.",
+                "confidence": "low",
+                "recommendations": []
+            }
+
         df['start_time'] = pd.to_datetime(df['start_time'])
 
         # Filter by commodity
         df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False)]
 
-        # Filter by month if provided
-        if month:
-            df['month_name'] = df['start_time'].dt.strftime('%B')
-            df_commodity = df_commodity[df_commodity['month_name'].str.lower() == month.lower()]
-        else:
-            # Use last 30 days
-            df_commodity = df_commodity[df_commodity['start_time'] >= df_commodity['start_time'].max() - pd.Timedelta(days=30)]
-
         if df_commodity.empty:
+            available = sorted(df['commodity'].unique().tolist())
             return {
                 "commodity": commodity,
-                "advice": "Insufficient data for AI analysis. Please check back after more price data is collected.",
+                "advice": f"Commodity '{commodity}' not found in database. Please check spelling or try another commodity.",
                 "confidence": "low",
-                "recommendations": []
+                "recommendations": [],
+                "available_commodities": available[:10]
             }
+
+        # Filter by month if provided
+        if month:
+            df_commodity['month_name'] = df_commodity['start_time'].dt.strftime('%B')
+            df_commodity = df_commodity[df_commodity['month_name'].str.lower() == month.lower()]
+
+            if df_commodity.empty:
+                return {
+                    "commodity": commodity,
+                    "advice": f"No price data available for {commodity} in {month}. Try a different month.",
+                    "confidence": "low",
+                    "recommendations": []
+                }
 
         # Calculate price statistics
         df_commodity['price_per_kg'] = pd.to_numeric(df_commodity['price_per_kg'], errors='coerce')
+        df_commodity = df_commodity.dropna(subset=['price_per_kg'])
+
+        if df_commodity.empty or len(df_commodity) < 2:
+            return {
+                "commodity": commodity,
+                "advice": "Insufficient price data for analysis. At least 2 price records needed.",
+                "confidence": "low",
+                "recommendations": []
+            }
 
         avg_price = df_commodity['price_per_kg'].mean()
         std_dev = df_commodity['price_per_kg'].std()
 
         # Find best and worst markets
         market_avg = df_commodity.groupby('market')['price_per_kg'].mean()
+
+        if len(market_avg) == 0:
+            return {
+                "commodity": commodity,
+                "advice": "Price data exists but no market information available.",
+                "confidence": "low",
+                "recommendations": []
+            }
+
         best_market = market_avg.idxmin()
         worst_market = market_avg.idxmax()
         best_price = market_avg.min()
         worst_price = market_avg.max()
 
-        # Calculate price trend (last 7 days vs previous 7 days)
+        # Calculate price trend
+        trend = "stable"
+        trend_percent = 0
+
         if len(df_commodity) >= 14:
-            sorted_data = df_commodity.sort_values('start_time')
-            recent_avg = sorted_data.tail(7)['price_per_kg'].mean()
-            previous_avg = sorted_data.iloc[-14:-7]['price_per_kg'].mean()
-            trend = "rising" if recent_avg > previous_avg else "falling" if recent_avg < previous_avg else "stable"
-            trend_percent = abs((recent_avg - previous_avg) / previous_avg * 100)
-        else:
-            trend = "stable"
-            trend_percent = 0
+            try:
+                sorted_data = df_commodity.sort_values('start_time')
+                recent_avg = sorted_data.tail(7)['price_per_kg'].mean()
+                previous_avg = sorted_data.iloc[-14:-7]['price_per_kg'].mean()
+
+                if pd.notna(recent_avg) and pd.notna(previous_avg) and previous_avg > 0:
+                    diff = recent_avg - previous_avg
+                    if abs(diff) > previous_avg * 0.02:  # More than 2% change
+                        trend = "rising" if diff > 0 else "falling"
+                        trend_percent = abs((diff / previous_avg) * 100)
+            except:
+                trend = "stable"
+                trend_percent = 0
 
         # Generate AI advice
         if trend == "rising":
@@ -582,22 +620,26 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             price_advice = "Prices are stable. Good time to source at predictable rates."
 
         # Market recommendation
-        savings = worst_price - best_price
-        savings_percent = (savings / worst_price * 100) if worst_price > 0 else 0
-
-        market_advice = f"Buy from {best_market} (₦{best_price:.2f}/kg) and save ₦{savings:.2f}/kg ({savings_percent:.1f}%) compared to {worst_market}."
+        if best_market != worst_market:
+            savings = worst_price - best_price
+            savings_percent = (savings / worst_price * 100) if worst_price > 0 else 0
+            market_advice = f" Buy from {best_market} (₦{best_price:.2f}/kg) and save ₦{savings:.2f}/kg ({savings_percent:.1f}%) compared to {worst_market}."
+        else:
+            market_advice = f" Average price across markets: ₦{avg_price:.2f}/kg."
 
         # Volatility assessment
-        volatility = "high" if std_dev > avg_price * 0.2 else "moderate" if std_dev > avg_price * 0.1 else "low"
-        volatility_advice = f"Market volatility is {volatility}. " + (
-            "Prices vary significantly across markets - careful sourcing can yield major savings." if volatility == "high"
-            else "Prices are relatively consistent across markets." if volatility == "low"
-            else "Some price variation exists - shop around for best deals."
-        )
+        if pd.notna(std_dev) and avg_price > 0:
+            volatility = "high" if std_dev > avg_price * 0.2 else "moderate" if std_dev > avg_price * 0.1 else "low"
+        else:
+            volatility = "low"
+
+        volatility_advice = f" Market volatility is {volatility}."
+
+        full_advice = price_advice + market_advice + volatility_advice
 
         return {
             "commodity": commodity,
-            "advice": f"{price_advice} {market_advice} {volatility_advice}",
+            "advice": full_advice,
             "confidence": "high" if len(df_commodity) >= 10 else "moderate" if len(df_commodity) >= 5 else "low",
             "trend": trend,
             "trend_percentage": round(trend_percent, 2),
@@ -628,10 +670,16 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
 
     except Exception as e:
         import traceback
-        raise HTTPException(
-            status_code=500,
-            detail=f"AI advisor failed: {str(e)}\n{traceback.format_exc()}"
-        )
+        error_detail = f"AI advisor failed: {str(e)}\n{traceback.format_exc()}"
+        print(error_detail)  # Log to console for debugging
+
+        return {
+            "commodity": commodity,
+            "advice": "Unable to generate market advice at this time. Please try again later.",
+            "confidence": "low",
+            "recommendations": [],
+            "error": str(e)
+        }
 
 
 @app.get("/analysis")
