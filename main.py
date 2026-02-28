@@ -813,39 +813,102 @@ def get_filtered_prices(
     page: int = 1,
     page_size: int = 100
 ):
+    """
+    Get filtered prices with automatic % change calculation
+
+    ✅ NOW INCLUDES: percent_change and change_indicator fields automatically!
+    """
     try:
         df = fetch_data()
+
+        if df.empty:
+            return {
+                "data": [],
+                "pagination": {
+                    "page": 1,
+                    "page_size": page_size,
+                    "total_records": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                }
+            }
+
+        # Convert dates
         if 'start_time' in df.columns:
             df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+
+        # Apply all filters
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
         if market:
             df = df[df['market'].str.contains(market, case=False, na=False)]
         if state:
             df = df[df['state'].str.contains(state, case=False, na=False)]
+
+        # Convert price to numeric for filtering and calculations
+        df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
+
         if min_price is not None:
-            df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-            df = df[df['price_per_kg'] >= min_price]
+            df = df[df['price_per_kg_numeric'] >= min_price]
         if max_price is not None:
-            df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-            df = df[df['price_per_kg'] <= max_price]
+            df = df[df['price_per_kg_numeric'] <= max_price]
         if start_date:
             df = df[df['start_time'] >= pd.to_datetime(start_date)]
         if end_date:
             df = df[df['start_time'] <= pd.to_datetime(end_date)]
+
+        if df.empty:
+            return {
+                "data": [],
+                "pagination": {
+                    "page": 1,
+                    "page_size": page_size,
+                    "total_records": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False
+                }
+            }
+
+        # Sort by commodity and date (newest first) for % change calculation
+        df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
+
+        # ✅ CALCULATE % CHANGE
+        # Compare each row to the previous row within the same commodity
+        df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
+        df['percent_change'] = df['percent_change'].round(2)
+
+        # Add change indicator emoji
+        df['change_indicator'] = df['percent_change'].apply(
+            lambda x: '📈' if pd.notna(x) and x > 0
+            else '📉' if pd.notna(x) and x < 0
+            else '➡️'
+        )
+
+        # Format percent_change for display
+        df['percent_change'] = df['percent_change'].apply(
+            lambda x: f"+{x}%" if pd.notna(x) and x > 0
+            else f"{x}%" if pd.notna(x) and x < 0
+            else "None"
+        )
+
+        # Convert dates back to string for JSON
         df['start_time'] = df['start_time'].astype(str)
-        df = df.sort_values('start_time', ascending=False)
+
+        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
+
         if page < 1:
             page = 1
         if page > total_pages and total_pages > 0:
             page = total_pages
+
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
         df_page = df.iloc[start_idx:end_idx]
-        if 'start_time' in df_page.columns:
-            df_page['start_time'] = df_page['start_time'].astype(str)
+
         return {
             "data": df_page.to_dict(orient='records'),
             "pagination": {
@@ -858,6 +921,8 @@ def get_filtered_prices(
             }
         }
     except Exception as e:
+        import traceback
+        print(f"Error in prices/filtered: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Filtered query failed: {str(e)}")
 
 
