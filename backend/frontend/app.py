@@ -60,7 +60,7 @@ def normalize_commodity_for_display(name):
     elif name_lower == "sorghum":
         return "Sorghum"
     elif "soya" in name_lower or "soy" in name_lower:
-        return "Soyabeans"
+        return "Soybeans"
     elif "honey" in name_lower:
         return "Honey beans"
     elif "rice" in name_lower and "paddy" in name_lower:
