@@ -1030,55 +1030,92 @@ def get_all_filters():
 
 @app.get("/market-comparison")
 def get_market_comparison(commodity: str, month: str):
-    """Get market comparison including BOTH internal and external sources"""
+    """
+    Get market comparison - ONLY returns markets that carry the selected commodity
+    
+    ✅ NEW: Filters out markets that don't have the commodity
+    """
     try:
+        # 1. Get internal prices (Kasuwa data)
         df_internal = fetch_data()
         df_internal['start_time'] = pd.to_datetime(df_internal['start_time'])
         df_internal['month_name'] = df_internal['start_time'].dt.strftime('%B')
+        
+        # Filter by commodity AND month
         df_internal = df_internal[
             (df_internal['commodity'].str.contains(commodity, case=False, na=False)) &
             (df_internal['month_name'].str.lower() == month.lower())
         ]
         df_internal['price_per_kg'] = pd.to_numeric(df_internal['price_per_kg'], errors='coerce')
+        
+        # Remove zero/null prices
+        df_internal = df_internal[df_internal['price_per_kg'] > 0]
 
         internal_markets = []
         if not df_internal.empty:
             for mkt in df_internal['market'].unique():
                 mkt_data = df_internal[df_internal['market'] == mkt]
-                internal_markets.append({
-                    "source": "Internal (Kasuwa)",
-                    "market": mkt,
-                    "avg_price_per_kg": round(float(mkt_data['price_per_kg'].mean()), 2),
-                    "min_price": float(mkt_data['price_per_kg'].min()),
-                    "max_price": float(mkt_data['price_per_kg'].max())
-                })
+                avg_price = mkt_data['price_per_kg'].mean()
+                
+                # ✅ Only add if price is valid
+                if avg_price > 0:
+                    internal_markets.append({
+                        "source": "Internal (Kasuwa)",
+                        "market": mkt,
+                        "avg_price_per_kg": round(float(avg_price), 2),
+                        "min_price": float(mkt_data['price_per_kg'].min()),
+                        "max_price": float(mkt_data['price_per_kg'].max())
+                    })
 
+        # 2. Get external sources
         df_external = fetch_other_sources_data()
         df_external['date'] = pd.to_datetime(df_external['date'], errors='coerce')
         df_external['month_name'] = df_external['date'].dt.strftime('%B')
+        
+        # Filter by commodity AND month
         df_external = df_external[
             (df_external['commodity'].str.contains(commodity, case=False, na=False)) &
             (df_external['month_name'].str.lower() == month.lower())
         ]
         df_external['price'] = pd.to_numeric(df_external['price'], errors='coerce')
+        
+        # Remove zero/null prices
+        df_external = df_external[df_external['price'] > 0]
 
         external_markets = []
         if not df_external.empty:
             for loc in df_external['location'].unique():
                 loc_data = df_external[df_external['location'] == loc]
                 avg_bag = loc_data['price'].mean()
-                is_bag = loc_data['unit'].iloc[0] == 'bag'
-                avg_kg = avg_bag / 100 if is_bag else avg_bag
-                external_markets.append({
-                    "source": "External",
-                    "market": loc,
-                    "avg_price_per_kg": round(float(avg_kg), 2),
-                    "min_price": float(loc_data['price'].min() / 100 if is_bag else loc_data['price'].min()),
-                    "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max())
-                })
+                
+                # ✅ Only add if price is valid
+                if avg_bag > 0:
+                    is_bag = loc_data['unit'].iloc[0] == 'bag'
+                    avg_kg = avg_bag / 100 if is_bag else avg_bag
+                    
+                    external_markets.append({
+                        "source": "External",
+                        "market": loc,
+                        "avg_price_per_kg": round(float(avg_kg), 2),
+                        "min_price": float(loc_data['price'].min() / 100 if is_bag else loc_data['price'].min()),
+                        "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max())
+                    })
 
+        # 3. Combine and sort by price
         all_markets = internal_markets + external_markets
         all_markets.sort(key=lambda x: x['avg_price_per_kg'])
+
+        # ✅ If no markets found, return helpful message
+        if not all_markets:
+            return {
+                "commodity": commodity,
+                "month": month,
+                "markets": [],
+                "total_markets": 0,
+                "internal_count": 0,
+                "external_count": 0,
+                "message": f"No markets found carrying '{commodity}' in {month}. Try a different month or commodity."
+            }
 
         return {
             "commodity": commodity,
@@ -1090,8 +1127,11 @@ def get_market_comparison(commodity: str, month: str):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Market comparison failed: {str(e)}")
-
+        import traceback
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Market comparison failed: {str(e)}\n{traceback.format_exc()}"
+        )
 
 # ============================================================
 # TWO-MARKET COMPARISON ENDPOINT
