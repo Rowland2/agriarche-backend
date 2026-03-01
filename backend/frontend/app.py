@@ -23,7 +23,7 @@ BG_COLOR = "#F5F7FA"
 LOGO_PATH = "assets/logo.png"  # Optional: add your logo
 
 COMMODITY_INFO = {
-    "Soya Beans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
+    "Soybeans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
     "Brown Cowpea": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
     "White Cowpea": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
     "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
@@ -60,7 +60,7 @@ def normalize_commodity_for_display(name):
     elif name_lower == "sorghum":
         return "Sorghum"
     elif "soya" in name_lower or "soy" in name_lower:
-        return "Soya Beans"
+        return "Soyabeans"
     elif "honey" in name_lower:
         return "Honey beans"
     elif "rice" in name_lower and "paddy" in name_lower:
@@ -70,7 +70,7 @@ def normalize_commodity_for_display(name):
     elif "millet" in name_lower:
         return "Millet"
     elif "groundnut" in name_lower and "gargaja" in name_lower:
-        return "Groundnut gargaja"
+        return "Groundnut Gargaja"
     elif "groundnut" in name_lower and "kampala" in name_lower:
         return "Groundnut kampala"
     
@@ -89,12 +89,12 @@ def convert_display_to_api_format(display_name):
         "White Sorghum": "Sorghum White",
         "Yellow Sorghum": "Sorghum Yellow",
         "Sorghum": "Sorghum",
-        "Soya Beans": "Soya Beans",
+       "Soybeans": "Soybeans",
         "Honey beans": "Honey beans",
         "Rice Paddy": "Rice Paddy",
         "Processed Rice": "Rice processed",
         "Millet": "Millet",
-        "Groundnut gargaja": "Groundnut gargaja",
+        "Groundnut gargaja": "Groundnut Gargaja",
         "Groundnut kampala": "Groundnut kampala"
     }
     
