@@ -927,15 +927,24 @@ def get_filtered_prices(
 
 
 # ============================================================
-# FILTER ENDPOINTS
+# FILTER ENDPOINTS (OPTIMIZED)
 # ============================================================
 
 @app.get("/filters/commodities")
 def get_commodity_list():
     try:
-        query = "SELECT DISTINCT commodity FROM prices WHERE commodity IS NOT NULL ORDER BY commodity"
-        df = pd.read_sql(text(query), engine)
-        return {"commodities": df['commodity'].tolist(), "count": len(df)}
+        query = text("""
+            SELECT DISTINCT TRIM(commodity) AS commodity
+            FROM prices
+            WHERE commodity IS NOT NULL AND commodity != ''
+            ORDER BY commodity
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            commodities = [row[0] for row in result]
+
+        return {"commodities": commodities, "count": len(commodities)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch commodities: {str(e)}")
 
@@ -943,9 +952,18 @@ def get_commodity_list():
 @app.get("/filters/markets")
 def get_market_list():
     try:
-        query = "SELECT DISTINCT market FROM prices WHERE market IS NOT NULL ORDER BY market"
-        df = pd.read_sql(text(query), engine)
-        return {"markets": df['market'].tolist(), "count": len(df)}
+        query = text("""
+            SELECT DISTINCT TRIM(market) AS market
+            FROM prices
+            WHERE market IS NOT NULL AND market != ''
+            ORDER BY market
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            markets = [row[0] for row in result]
+
+        return {"markets": markets, "count": len(markets)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch markets: {str(e)}")
 
@@ -953,9 +971,18 @@ def get_market_list():
 @app.get("/filters/states")
 def get_state_list():
     try:
-        query = "SELECT DISTINCT state FROM prices WHERE state IS NOT NULL ORDER BY state"
-        df = pd.read_sql(text(query), engine)
-        return {"states": df['state'].tolist(), "count": len(df)}
+        query = text("""
+            SELECT DISTINCT TRIM(state) AS state
+            FROM prices
+            WHERE state IS NOT NULL AND state != ''
+            ORDER BY state
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            states = [row[0] for row in result]
+
+        return {"states": states, "count": len(states)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch states: {str(e)}")
 
@@ -963,9 +990,18 @@ def get_state_list():
 @app.get("/filters/years")
 def get_year_list():
     try:
-        query = "SELECT DISTINCT EXTRACT(YEAR FROM start_time) as year FROM prices ORDER BY year DESC"
-        df = pd.read_sql(text(query), engine)
-        return {"years": [str(int(y)) for y in df['year'].tolist()], "count": len(df)}
+        query = text("""
+            SELECT DISTINCT EXTRACT(YEAR FROM start_time) AS year
+            FROM prices
+            WHERE start_time IS NOT NULL
+            ORDER BY year DESC
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            years = [str(int(row[0])) for row in result]
+
+        return {"years": years, "count": len(years)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch years: {str(e)}")
 
@@ -973,9 +1009,18 @@ def get_year_list():
 @app.get("/filters/other-sources-locations")
 def get_other_sources_locations():
     try:
-        query = "SELECT DISTINCT location FROM other_sources WHERE location IS NOT NULL ORDER BY location"
-        df = pd.read_sql(text(query), engine)
-        return {"locations": df['location'].tolist(), "count": len(df)}
+        query = text("""
+            SELECT DISTINCT TRIM(location) AS location
+            FROM other_sources
+            WHERE location IS NOT NULL AND location != ''
+            ORDER BY location
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            locations = [row[0] for row in result]
+
+        return {"locations": locations, "count": len(locations)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch locations: {str(e)}")
 
@@ -983,40 +1028,94 @@ def get_other_sources_locations():
 @app.get("/filters/other-sources-commodities")
 def get_other_sources_commodities():
     try:
-        query = "SELECT DISTINCT commodity FROM other_sources WHERE commodity IS NOT NULL ORDER BY commodity"
-        df = pd.read_sql(text(query), engine)
-        return {"commodities": df['commodity'].tolist(), "count": len(df)}
+        query = text("""
+            SELECT DISTINCT TRIM(commodity) AS commodity
+            FROM other_sources
+            WHERE commodity IS NOT NULL AND commodity != ''
+            ORDER BY commodity
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            commodities = [row[0] for row in result]
+
+        return {"commodities": commodities, "count": len(commodities)}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch other sources commodities: {str(e)}")
 
 
 @app.get("/filters/all")
 def get_all_filters():
-    """Get all filter options in one call (more efficient)"""
+    """
+    Get all filter values in ONE database call
+    Much faster for dashboards.
+    """
     try:
-        commodities_df = pd.read_sql(
-            text("SELECT DISTINCT commodity FROM prices WHERE commodity IS NOT NULL ORDER BY commodity"), engine)
-        markets_df = pd.read_sql(
-            text("SELECT DISTINCT market FROM prices WHERE market IS NOT NULL ORDER BY market"), engine)
-        states_df = pd.read_sql(
-            text("SELECT DISTINCT state FROM prices WHERE state IS NOT NULL ORDER BY state"), engine)
-        years_df = pd.read_sql(
-            text("SELECT DISTINCT EXTRACT(YEAR FROM start_time) as year FROM prices ORDER BY year DESC"), engine)
-        other_commodities_df = pd.read_sql(
-            text("SELECT DISTINCT commodity FROM other_sources WHERE commodity IS NOT NULL ORDER BY commodity"), engine)
-        other_locations_df = pd.read_sql(
-            text("SELECT DISTINCT location FROM other_sources WHERE location IS NOT NULL ORDER BY location"), engine)
+
+        commodities_query = """
+            SELECT DISTINCT TRIM(commodity) AS commodity
+            FROM prices
+            WHERE commodity IS NOT NULL AND commodity != ''
+            ORDER BY commodity
+        """
+
+        markets_query = """
+            SELECT DISTINCT TRIM(market) AS market
+            FROM prices
+            WHERE market IS NOT NULL AND market != ''
+            ORDER BY market
+        """
+
+        states_query = """
+            SELECT DISTINCT TRIM(state) AS state
+            FROM prices
+            WHERE state IS NOT NULL AND state != ''
+            ORDER BY state
+        """
+
+        years_query = """
+            SELECT DISTINCT EXTRACT(YEAR FROM start_time) AS year
+            FROM prices
+            WHERE start_time IS NOT NULL
+            ORDER BY year DESC
+        """
+
+        other_commodities_query = """
+            SELECT DISTINCT TRIM(commodity) AS commodity
+            FROM other_sources
+            WHERE commodity IS NOT NULL AND commodity != ''
+            ORDER BY commodity
+        """
+
+        other_locations_query = """
+            SELECT DISTINCT TRIM(location) AS location
+            FROM other_sources
+            WHERE location IS NOT NULL AND location != ''
+            ORDER BY location
+        """
+
+        with engine.connect() as conn:
+
+            commodities = [row[0] for row in conn.execute(text(commodities_query))]
+            markets = [row[0] for row in conn.execute(text(markets_query))]
+            states = [row[0] for row in conn.execute(text(states_query))]
+            years = [str(int(row[0])) for row in conn.execute(text(years_query))]
+
+            other_commodities = [row[0] for row in conn.execute(text(other_commodities_query))]
+            other_locations = [row[0] for row in conn.execute(text(other_locations_query))]
 
         return {
-            "commodities": commodities_df['commodity'].tolist(),
-            "markets": markets_df['market'].tolist(),
-            "states": states_df['state'].tolist(),
-            "years": [str(int(y)) for y in years_df['year'].tolist()],
-            "months": ["January", "February", "March", "April", "May", "June",
-                       "July", "August", "September", "October", "November", "December"],
+            "commodities": commodities,
+            "markets": markets,
+            "states": states,
+            "years": years,
+            "months": [
+                "January","February","March","April","May","June",
+                "July","August","September","October","November","December"
+            ],
             "other_sources": {
-                "commodities": other_commodities_df['commodity'].tolist(),
-                "locations": other_locations_df['location'].tolist()
+                "commodities": other_commodities,
+                "locations": other_locations
             }
         }
 
