@@ -1,16 +1,14 @@
 """
 Upload Kasuwa Internal Price Data to Agriarche Backend
 =====================================================
-This script uploads Kasuwa internal market price data from Excel files with:
+This script uploads Kasuwa internal market price data from CSV files with:
 - Automatic commodity name standardization
 - Data quality validation
 - Duplicate prevention
 - Bad price detection
 
 Requirements:
-  pip install pandas openpyxl requests
-
-Supported formats: .xlsx, .xls
+  pip install pandas requests
 
 Author: Agriarche Team
 Last Updated: March 2026
@@ -202,17 +200,17 @@ def validate_data_quality(df):
 # =====================================================
 # UPLOAD FUNCTION
 # =====================================================
-def upload_kasuwa_data(excel_file_path):
+def upload_kasuwa_data(csv_file_path):
     """
-    Upload Kasuwa internal price data from Excel file
+    Upload Kasuwa internal price data from CSV file
     
     Args:
-        excel_file_path (str): Path to Excel file (.xlsx or .xls)
+        csv_file_path (str): Path to CSV file
     """
     try:
-        # Load Excel file
-        print(f"\n📂 Loading data from: {excel_file_path}")
-        df = pd.read_excel(excel_file_path)
+        # Load CSV
+        print(f"\n📂 Loading data from: {csv_file_path}")
+        df = pd.read_csv(csv_file_path)
         
         print(f"✅ Loaded {len(df)} records")
         
@@ -354,7 +352,7 @@ def upload_kasuwa_data(excel_file_path):
         print("="*60)
         
     except FileNotFoundError:
-        print(f"❌ Error: File not found: {excel_file_path}")
+        print(f"❌ Error: File not found: {csv_file_path}")
     except Exception as e:
         print(f"❌ Upload failed: {str(e)}")
 
@@ -368,24 +366,23 @@ if __name__ == "__main__":
     print("="*60)
     
     # Get file path from user
-    excel_file = input("\n📁 Enter Excel file path (or press Enter for default 'kasuwa_data.xlsx'): ").strip()
+    csv_file = input("\n📁 Enter CSV file path (or press Enter for default 'kasuwa_data.csv'): ").strip()
     
-    if not excel_file:
-        excel_file = "kasuwa_data.xlsx"
+    if not csv_file:
+        csv_file = "kasuwa_data.csv"
     
     # Check if file exists
-    if not os.path.exists(excel_file):
-        print(f"\n❌ File not found: {excel_file}")
-        print("\n💡 Make sure the Excel file is in the same folder as this script,")
-        print("   or provide the full path (e.g., C:/Users/YourName/Documents/kasuwa_data.xlsx)")
-        print("\n📋 Supported formats: .xlsx, .xls")
+    if not os.path.exists(csv_file):
+        print(f"\n❌ File not found: {csv_file}")
+        print("\n💡 Make sure the CSV file is in the same folder as this script,")
+        print("   or provide the full path (e.g., C:/Users/YourName/Documents/kasuwa_data.csv)")
     else:
         # Confirm upload
-        print(f"\n📄 File found: {excel_file}")
+        print(f"\n📄 File found: {csv_file}")
         confirm = input("🚀 Ready to upload? (yes/no): ")
         
         if confirm.lower() == 'yes':
-            upload_kasuwa_data(excel_file)
+            upload_kasuwa_data(csv_file)
         else:
             print("❌ Upload cancelled")
     
