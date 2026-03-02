@@ -628,7 +628,7 @@ try:
         st.error(f"Failed to fetch archive data. Status code: {full_res.status_code}")
         
 except Exception as e:
-    st.error(f"Archive Table Error: {e}"
+    st.error(f"Archive Table Error: {e}")
 
 # =====================================================
 # 8. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
