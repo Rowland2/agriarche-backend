@@ -1,364 +1,414 @@
 """
-SMART Upload Script for Other Sources (Scraped Data)
-This version only uploads NEW records and avoids duplicates!
+Upload Other Sources (External) Market Data to Agriarche Backend
+==============================================================
+This script uploads externally sourced market price data with:
+- Automatic commodity name standardization
+- Data quality validation
+- Duplicate prevention
+- Bulk upload optimization
+
+Author: Agriarche Team
+Last Updated: March 2026
 """
 
 import pandas as pd
 import requests
+import os
 from datetime import datetime
 
 # =====================================================
 # CONFIGURATION
 # =====================================================
-API_URL = "https://agriarche-backend.onrender.com"
+BASE_URL = "https://agriarche-backend.onrender.com"
 API_KEY = "Agriarche_Internal_Key_2026"
 HEADERS = {"access_token": API_KEY}
 
+# Bulk upload batch size
+BATCH_SIZE = 100
+
 # =====================================================
-# SMART UPLOAD - ONLY NEW RECORDS
+# COMMODITY NAME STANDARDIZATION
 # =====================================================
-def upload_new_other_sources(excel_file_path):
+def standardize_commodity_name(commodity):
     """
-    Smart upload that only uploads NEW other sources records
-    Checks database first to avoid duplicates
+    Standardize commodity names to match database conventions
+    This prevents duplicates from inconsistent naming
+    
+    Args:
+        commodity (str): Raw commodity name from CSV
+        
+    Returns:
+        str: Standardized commodity name
     """
+    if not commodity or not isinstance(commodity, str):
+        return commodity
     
-    print("=" * 70)
-    print("SMART UPLOAD - OTHER SOURCES (NEW RECORDS ONLY)")
-    print("=" * 70)
+    # Trim whitespace
+    commodity = commodity.strip()
     
-    # Read File (Auto-detect CSV or Excel)
-    print(f"\n📂 Reading: {excel_file_path}")
-    try:
-        if excel_file_path.lower().endswith('.csv'):
-            df = pd.read_csv(excel_file_path)
-            print(f"✅ Loaded {len(df)} rows from CSV")
-        elif excel_file_path.lower().endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(excel_file_path)
-            print(f"✅ Loaded {len(df)} rows from Excel")
+    # Define standard mappings (lowercase → proper case)
+    STANDARD_NAMES = {
+        # Soybeans variations
+        'soya beans': 'Soybeans',
+        'soya bean': 'Soybeans',
+        'soy beans': 'Soybeans',
+        'soy bean': 'Soybeans',
+        'soybean': 'Soybeans',
+        'soybeans': 'Soybeans',
+        
+        # Groundnut variations
+        'groundnut gargaja': 'Groundnut Gargaja',
+        'groundnut kampala': 'Groundnut Kampala',
+        'groundut kampala': 'Groundnut Kampala',
+        
+        # White Beans variations
+        'white beans': 'White Beans (Zapa)',
+        'white beans (zapa)': 'White Beans (Zapa)',
+        'white beans zapa': 'White Beans (Zapa)',
+        'white beans (misra)': 'White Beans (Misra)',
+        'white beans misra': 'White Beans (Misra)',
+        
+        # Rice variations
+        'rice paddy': 'Paddy Rice',
+        'paddy rice': 'Paddy Rice',
+        'rice processed': 'Processed Rice',
+        'processed rice': 'Processed Rice',
+        
+        # Cowpea variations
+        'brown cowpea': 'Cowpea Brown',
+        'cowpea brown': 'Cowpea Brown',
+        'white cowpea': 'Cowpea White',
+        'cowpea white': 'Cowpea White',
+        
+        # Maize variations
+        'white maize': 'Maize White',
+        'maize white': 'Maize White',
+        'maize (corn) white': 'Maize White',
+        'maize (corn) white new harvest': 'Maize (Corn) White New Harvest',
+        
+        # Sorghum variations
+        'red sorghum': 'Sorghum Red',
+        'sorghum red': 'Sorghum Red',
+        'white sorghum': 'Sorghum White',
+        'sorghum white': 'Sorghum White',
+        'yellow sorghum': 'Sorghum Yellow',
+        'sorghum yellow': 'Sorghum Yellow',
+        
+        # Honey Beans
+        'honey beans': 'Honey Beans',
+        'honeybeans': 'Honey Beans',
+        
+        # Millet
+        'millet (gero)': 'Millet (Gero)',
+        'millet': 'Millet',
+        
+        # Chili Pepper
+        'chili pepper': 'Chili Pepper',
+        
+        # Wheat
+        'wheat': 'Wheat',
+    }
+    
+    # Try exact match (case-insensitive)
+    commodity_lower = commodity.lower()
+    if commodity_lower in STANDARD_NAMES:
+        return STANDARD_NAMES[commodity_lower]
+    
+    # If no exact match, use title case as fallback
+    return commodity.title()
+
+
+# =====================================================
+# DATA QUALITY VALIDATION
+# =====================================================
+def validate_data_quality(df):
+    """
+    Validate data before uploading to prevent bad data
+    
+    Args:
+        df (DataFrame): Data to validate
+        
+    Returns:
+        bool: True if validation passes, False otherwise
+    """
+    issues = []
+    
+    # Check for ALL CAPS commodities
+    if 'commodity' in df.columns:
+        all_caps = df[df['commodity'].str.isupper() & (df['commodity'].str.len() > 2)]
+        if len(all_caps) > 0:
+            issues.append(f"⚠️  Found {len(all_caps)} ALL CAPS commodities (will be auto-fixed)")
+            print("\n🔍 ALL CAPS commodities found:")
+            print(all_caps['commodity'].unique())
+    
+    # Check for missing required fields
+    required_fields = ['date', 'commodity', 'location', 'unit', 'price']
+    for field in required_fields:
+        if field not in df.columns:
+            issues.append(f"❌ Missing required field: {field}")
         else:
-            # Try CSV first, then Excel
+            missing_count = df[field].isna().sum()
+            if missing_count > 0:
+                issues.append(f"⚠️  Found {missing_count} records with missing {field}")
+    
+    # Check for invalid prices
+    if 'price' in df.columns:
+        df['price_numeric'] = pd.to_numeric(df['price'], errors='coerce')
+        
+        # Negative or zero prices
+        invalid_prices = df[
+            (df['price_numeric'] <= 0) | 
+            (df['price_numeric'].isna())
+        ]
+        if len(invalid_prices) > 0:
+            issues.append(f"⚠️  Found {len(invalid_prices)} records with invalid prices (≤ 0 or not numeric)")
+        
+        # Very low prices (< ₦10 per kg or < ₦1000 per bag)
+        if 'unit' in df.columns:
+            very_low_kg = df[
+                (df['unit'].str.lower() == 'kg') & 
+                (df['price_numeric'] < 10) &
+                (df['price_numeric'] > 0)
+            ]
+            very_low_bag = df[
+                (df['unit'].str.lower() == 'bag') & 
+                (df['price_numeric'] < 1000) &
+                (df['price_numeric'] > 0)
+            ]
+            
+            if len(very_low_kg) > 0:
+                issues.append(f"⚠️  Found {len(very_low_kg)} records with price < ₦10/kg (possible error)")
+            if len(very_low_bag) > 0:
+                issues.append(f"⚠️  Found {len(very_low_bag)} records with price < ₦1000/bag (possible error)")
+    
+    # Check for duplicate entries
+    if all(col in df.columns for col in ['date', 'commodity', 'location']):
+        duplicates = df[df.duplicated(subset=['date', 'commodity', 'location'], keep=False)]
+        if len(duplicates) > 0:
+            issues.append(f"⚠️  Found {len(duplicates)} potential duplicate records")
+    
+    # Report issues
+    if issues:
+        print("\n" + "="*60)
+        print("🚨 DATA QUALITY ISSUES FOUND:")
+        print("="*60)
+        for issue in issues:
+            print(f"  {issue}")
+        print("="*60)
+        
+        # Check if there are critical errors (missing required fields)
+        critical_errors = [i for i in issues if i.startswith("❌")]
+        if critical_errors:
+            print("\n❌ CRITICAL ERRORS - Cannot proceed with upload")
+            return False
+        
+        response = input("\n❓ Continue with upload? (yes/no): ")
+        if response.lower() != 'yes':
+            print("❌ Upload cancelled by user")
+            return False
+    
+    return True
+
+
+# =====================================================
+# UPLOAD FUNCTION
+# =====================================================
+def upload_other_sources_data(csv_file_path):
+    """
+    Upload other sources data from CSV file using bulk upload
+    
+    Args:
+        csv_file_path (str): Path to CSV file
+    """
+    try:
+        # Load CSV
+        print(f"\n📂 Loading data from: {csv_file_path}")
+        df = pd.read_csv(csv_file_path)
+        
+        print(f"✅ Loaded {len(df)} records")
+        
+        # Required columns
+        required_columns = ['date', 'commodity', 'location', 'unit', 'price']
+        
+        # Check for missing columns
+        missing_cols = [col for col in required_columns if col not in df.columns]
+        if missing_cols:
+            print(f"❌ Missing required columns: {missing_cols}")
+            print(f"\n📋 Expected columns: {required_columns}")
+            print(f"📋 Found columns: {df.columns.tolist()}")
+            return
+        
+        # ✅ STANDARDIZE COMMODITY NAMES
+        print("\n🔄 Standardizing commodity names...")
+        df['commodity_original'] = df['commodity'].copy()
+        df['commodity'] = df['commodity'].apply(standardize_commodity_name)
+        
+        # Show what was changed
+        changes = df[df['commodity'] != df['commodity_original']][['commodity_original', 'commodity']].drop_duplicates()
+        if len(changes) > 0:
+            print(f"✅ Standardized {len(changes)} commodity name variations:")
+            for _, row in changes.iterrows():
+                print(f"   '{row['commodity_original']}' → '{row['commodity']}'")
+        
+        # ✅ VALIDATE DATA QUALITY
+        print("\n🔍 Validating data quality...")
+        if not validate_data_quality(df):
+            return  # User cancelled or critical errors
+        
+        # ✅ CHECK FOR EXISTING RECORDS (PREVENT DUPLICATES)
+        print("\n🔍 Checking for existing records in database...")
+        try:
+            existing_response = requests.get(
+                f"{BASE_URL}/other-sources",
+                params={"page": 1, "page_size": 10000},
+                headers=HEADERS,
+                timeout=15
+            )
+            
+            if existing_response.status_code == 200:
+                existing_result = existing_response.json()
+                existing_data = existing_result.get('data', existing_result) if isinstance(existing_result, dict) else existing_result
+                
+                if existing_data:
+                    existing_df = pd.DataFrame(existing_data)
+                    
+                    # Create comparison keys (date + commodity + location)
+                    df['compare_key'] = (
+                        pd.to_datetime(df['date']).astype(str) + "_" + 
+                        df['commodity'].astype(str) + "_" + 
+                        df['location'].astype(str)
+                    )
+                    
+                    existing_df['compare_key'] = (
+                        pd.to_datetime(existing_df['date']).astype(str) + "_" + 
+                        existing_df['commodity'].astype(str) + "_" + 
+                        existing_df['location'].astype(str)
+                    )
+                    
+                    # Filter out duplicates
+                    before_count = len(df)
+                    df = df[~df['compare_key'].isin(existing_df['compare_key'])]
+                    after_count = len(df)
+                    duplicates_found = before_count - after_count
+                    
+                    if duplicates_found > 0:
+                        print(f"⚠️  Skipping {duplicates_found} duplicate records already in database")
+                        print(f"✅ {after_count} new records to upload")
+                    else:
+                        print(f"✅ No duplicates found - all {after_count} records are new")
+                    
+                    if after_count == 0:
+                        print("\n✅ All records already exist in database - nothing to upload!")
+                        return
+                else:
+                    print("✅ Database is empty - uploading all records")
+            else:
+                print(f"⚠️  Could not check for duplicates (API status: {existing_response.status_code})")
+                print("   Proceeding with upload anyway...")
+        except Exception as e:
+            print(f"⚠️  Could not check for duplicates: {str(e)}")
+            print("   Proceeding with upload anyway...")
+        
+        # Convert DataFrame to list of records
+        records = []
+        for index, row in df.iterrows():
             try:
-                df = pd.read_csv(excel_file_path)
-                print(f"✅ Loaded {len(df)} rows from CSV")
-            except:
-                df = pd.read_excel(excel_file_path)
-                print(f"✅ Loaded {len(df)} rows from Excel")
-    except Exception as e:
-        print(f"❌ Error reading file: {e}")
-        return
-    
-    print(f"📊 Columns found: {df.columns.tolist()}")
-    
-    # Map columns
-    print("\n🔄 Mapping columns...")
-    col_map = {}
-    
-    for col in df.columns:
-        col_lower = col.lower().strip()
+                records.append({
+                    "date": str(row['date']),
+                    "commodity": str(row['commodity']),  # Already standardized
+                    "location": str(row['location']),
+                    "unit": str(row['unit']),
+                    "price": float(row['price'])
+                })
+            except Exception as e:
+                print(f"⚠️  Skipping row {index}: {str(e)}")
         
-        if any(x in col_lower for x in ['date', 'time', 'timestamp', 'scraped']):
-            col_map[col] = 'date'
-        elif 'commodity' in col_lower:
-            col_map[col] = 'commodity'
-        elif any(x in col_lower for x in ['location', 'market', 'place']):
-            col_map[col] = 'location'
-        elif 'unit' in col_lower:
-            col_map[col] = 'unit'
-        elif any(x in col_lower for x in ['price', 'amount', 'cost']):
-            col_map[col] = 'price'
-        elif 'source' in col_lower:
-            col_map[col] = 'source'
-    
-    df = df.rename(columns=col_map)
-    
-    for old, new in col_map.items():
-        print(f"   {old} → {new}")
-    
-    # Verify required columns
-    required = ['date', 'commodity', 'location', 'unit', 'price']
-    missing = [c for c in required if c not in df.columns]
-    
-    if missing:
-        print(f"\n❌ Missing required columns: {missing}")
-        print(f"Available: {df.columns.tolist()}")
-        print("\n💡 Required columns:")
-        print("   - date (date/time)")
-        print("   - commodity (commodity name)")
-        print("   - location (market/location name)")
-        print("   - unit (e.g., 'bag', 'kg')")
-        print("   - price (price value)")
-        return
-    
-    print("✅ All required columns found")
-    
-    # Clean data
-    print("\n🧹 Cleaning data...")
-    
-    # Date
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df = df.dropna(subset=['date'])
-    
-    # Clean text columns FIRST
-    df['commodity'] = df['commodity'].astype(str).str.strip()
-    df['location'] = df['location'].astype(str).str.strip()
-    df['unit'] = df['unit'].astype(str).str.strip()
-    
-    # Add source if not present
-    if 'source' not in df.columns:
-        df['source'] = 'web_scraping'
-    else:
-        df['source'] = df['source'].astype(str).str.strip()
-    
-    # Price
-    df['price'] = df['price'].astype(str).str.replace(',', '').str.replace('₦', '').str.strip()
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
-    df = df.dropna(subset=['price'])
-    
-    print(f"✅ {len(df)} valid rows in file")
-    
-    # Fetch existing data from database
-    print("\n🔍 Checking database for existing records...")
-    try:
-        # Fetch all existing records (use large page size to get everything)
-        all_existing_data = []
-        page = 1
+        if not records:
+            print("❌ No valid records to upload")
+            return
         
-        while True:
-            response = requests.get(
-                f"{API_URL}/other-sources",
-                params={"page": page, "page_size": 1000},
-                headers=HEADERS
-            )
+        # Upload in batches
+        print(f"\n📤 Uploading {len(records)} records in batches of {BATCH_SIZE}...")
+        total_batches = (len(records) + BATCH_SIZE - 1) // BATCH_SIZE
+        success_count = 0
+        error_count = 0
+        
+        for i in range(0, len(records), BATCH_SIZE):
+            batch = records[i:i+BATCH_SIZE]
+            batch_num = (i // BATCH_SIZE) + 1
             
-            if response.status_code == 200:
-                result = response.json()
-                
-                # Handle paginated response
-                if isinstance(result, dict) and 'data' in result:
-                    data = result['data']
-                    pagination = result.get('pagination', {})
-                    
-                    all_existing_data.extend(data)
-                    
-                    # Check if there are more pages
-                    if not pagination.get('has_next', False):
-                        break
-                    
-                    page += 1
-                elif isinstance(result, list):
-                    # Old format (non-paginated)
-                    all_existing_data = result
-                    break
-                else:
-                    break
-            else:
-                print(f"⚠️  API returned status {response.status_code}")
-                break
-        
-        if all_existing_data:
-            existing_data = pd.DataFrame(all_existing_data)
-            
-            if not existing_data.empty:
-                existing_data['date'] = pd.to_datetime(existing_data['date'], errors='coerce')
-                existing_data['commodity'] = existing_data['commodity'].astype(str).str.strip().str.lower()
-                existing_data['location'] = existing_data['location'].astype(str).str.strip().str.lower()
-                
-                print(f"📊 Database has {len(existing_data)} existing records")
-                
-                # Create unique identifier for deduplication
-                # Using: date + commodity + location (without time for broader matching)
-                df['unique_key'] = (
-                    df['date'].dt.strftime('%Y-%m-%d') + '_' +
-                    df['commodity'].str.lower() + '_' +
-                    df['location'].str.lower()
+            try:
+                response = requests.post(
+                    f"{BASE_URL}/bulk-upload-other-sources",
+                    json=batch,
+                    headers=HEADERS,
+                    timeout=30
                 )
                 
-                existing_data['unique_key'] = (
-                    existing_data['date'].dt.strftime('%Y-%m-%d') + '_' +
-                    existing_data['commodity'] + '_' +
-                    existing_data['location']
-                )
-                
-                # Find NEW records only
-                new_records = df[~df['unique_key'].isin(existing_data['unique_key'])].copy()
-                duplicate_count = len(df) - len(new_records)
-                
-                print(f"✅ Found {len(new_records)} NEW records")
-                print(f"⚠️  Skipping {duplicate_count} duplicates already in database")
-                
-                df = new_records
-            else:
-                print("📭 Database is empty - all records are new")
-        else:
-            print("⚠️  Could not check database, will upload all records")
-    
-    except Exception as e:
-        print(f"⚠️  Error checking database: {e}")
-        print("Will proceed to upload all records")
-    
-    if df.empty:
-        print("\n✅ No new records to upload! Database is up to date.")
-        return
-    
-    # Show sample of NEW records
-    print(f"\n📄 Sample NEW records (first 3):")
-    for i in range(min(3, len(df))):
-        row = df.iloc[i]
-        print(f"   {i+1}. {row['date'].strftime('%Y-%m-%d')} | {row['commodity']} | {row['location']} | ₦{row['price']:,.0f}/{row['unit']}")
-    
-    # Confirm
-    print(f"\n⚠️  Ready to upload {len(df)} NEW records")
-    confirm = input("Continue? (yes/no): ").lower()
-    
-    if confirm not in ['yes', 'y']:
-        print("❌ Cancelled")
-        return
-    
-    # Upload NEW records only
-    print("\n📤 Uploading NEW records...")
-    
-    # Convert to records format
-    records = []
-    for idx, row in df.iterrows():
-        record = {
-            "date": str(row['date'].strftime('%Y-%m-%d %H:%M:%S')),
-            "commodity": str(row['commodity']),
-            "location": str(row['location']),
-            "unit": str(row['unit']),
-            "price": float(row['price']),
-            "source": str(row['source'])
-        }
-        records.append(record)
-    
-    # Bulk upload
-    try:
-        response = requests.post(
-            f"{API_URL}/bulk-upload-other-sources",
-            json=records,
-            headers=HEADERS,
-            timeout=60
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"\n✅ SUCCESS! {result['message']}")
-            print(f"✅ {len(records)} records uploaded successfully!")
-        else:
-            print(f"\n❌ Upload failed!")
-            print(f"Status: {response.status_code}")
-            print(f"Error: {response.text}")
-    
-    except Exception as e:
-        print(f"\n❌ Upload error: {e}")
-    
-    print(f"\n{'=' * 70}")
-
-# =====================================================
-# VERIFY DATA
-# =====================================================
-def verify_other_sources():
-    """Check what's in the other sources database"""
-    
-    print("\n" + "=" * 70)
-    print("VERIFYING OTHER SOURCES DATABASE")
-    print("=" * 70)
-    
-    try:
-        # Fetch all records (paginated)
-        all_data = []
-        page = 1
-        
-        print("\n🔄 Fetching all records from database...")
-        
-        while True:
-            response = requests.get(
-                f"{API_URL}/other-sources",
-                params={"page": page, "page_size": 1000},
-                headers=HEADERS
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                
-                # Handle paginated response
-                if isinstance(result, dict) and 'data' in result:
-                    data = result['data']
-                    pagination = result.get('pagination', {})
-                    
-                    all_data.extend(data)
-                    print(f"   Fetched page {page}/{pagination.get('total_pages', '?')} ({len(data)} records)")
-                    
-                    # Check if there are more pages
-                    if not pagination.get('has_next', False):
-                        break
-                    
-                    page += 1
-                elif isinstance(result, list):
-                    # Old format (non-paginated)
-                    all_data = result
-                    break
+                if response.status_code == 200:
+                    success_count += len(batch)
+                    print(f"   ✓ Batch {batch_num}/{total_batches}: Uploaded {len(batch)} records")
                 else:
-                    break
-            else:
-                print(f"⚠️  API returned status {response.status_code}")
-                break
+                    error_count += len(batch)
+                    print(f"   ✗ Batch {batch_num}/{total_batches} failed: {response.status_code} - {response.text}")
+                    
+            except Exception as e:
+                error_count += len(batch)
+                print(f"   ✗ Batch {batch_num}/{total_batches} error: {str(e)}")
         
-        if all_data:
-            df = pd.DataFrame(all_data)
-            print(f"\n✅ Database has {len(df)} total records")
-            
-            if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
-                latest_date = df['date'].max()
-                oldest_date = df['date'].min()
-                print(f"📅 Date range: {oldest_date.strftime('%Y-%m-%d')} to {latest_date.strftime('%Y-%m-%d')}")
-            
-            if 'commodity' in df.columns:
-                print(f"\n📊 Commodities ({df['commodity'].nunique()}):")
-                for comm in sorted(df['commodity'].unique()[:10]):
-                    count = len(df[df['commodity'] == comm])
-                    print(f"   - {comm}: {count} records")
-            
-            if 'location' in df.columns:
-                print(f"\n📍 Locations ({df['location'].nunique()}):")
-                for loc in sorted(df['location'].unique()[:10]):
-                    count = len(df[df['location'] == loc])
-                    print(f"   - {loc}: {count} records")
-            
-            print(f"\n📋 Latest 5 records:")
-            latest = df.sort_values('date', ascending=False).head(5)
-            for idx, row in latest.iterrows():
-                print(f"   {row['date']} | {row['commodity']} | {row['location']} | ₦{row['price']:,.0f}")
-        else:
-            print("\n⚠️  Database is empty")
-    
+        # Summary
+        print("\n" + "="*60)
+        print("📊 UPLOAD SUMMARY")
+        print("="*60)
+        print(f"✅ Successfully uploaded: {success_count} records")
+        print(f"❌ Failed: {error_count} records")
+        print(f"📈 Success rate: {(success_count/len(records)*100):.1f}%")
+        print("="*60)
+        
+    except FileNotFoundError:
+        print(f"❌ Error: File not found: {csv_file_path}")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
-    
-    print("\n" + "=" * 70)
+        print(f"❌ Upload failed: {str(e)}")
+
 
 # =====================================================
-# RUN
+# MAIN EXECUTION
 # =====================================================
 if __name__ == "__main__":
+    print("="*60)
+    print("🌐 AGRIARCHE - OTHER SOURCES (EXTERNAL) DATA UPLOAD")
+    print("="*60)
     
-    print("\n🌾 AGRIARCHE - OTHER SOURCES SMART UPLOADER")
-    print("\nWhat would you like to do?")
-    print("1. Upload ONLY NEW records (recommended)")
-    print("2. Verify current database")
-    print("3. Both (upload then verify)")
+    # Get file path from user
+    csv_file = input("\n📁 Enter CSV file path (or press Enter for default 'other_sources_data.csv'): ").strip()
     
-    choice = input("\nChoice (1/2/3): ").strip()
+    if not csv_file:
+        csv_file = "other_sources_data.csv"
     
-    if choice == "1":
-        file_path = input("\nEnter Excel/CSV file path: ").strip()
-        upload_new_other_sources(file_path)
-    elif choice == "2":
-        verify_other_sources()
-    elif choice == "3":
-        file_path = input("\nEnter Excel/CSV file path: ").strip()
-        upload_new_other_sources(file_path)
-        verify_other_sources()
+    # Check if file exists
+    if not os.path.exists(csv_file):
+        print(f"\n❌ File not found: {csv_file}")
+        print("\n💡 Make sure the file is in the same folder as this script,")
+        print("   or provide the full path (e.g., C:/Users/YourName/Documents/other_sources_data.csv)")
+        print("\n📋 Expected CSV format:")
+        print("   date, commodity, location, unit, price")
+        print("   2026-01-15, Soybeans, Dawanau Market Kano State, bag, 85000")
     else:
-        print("Invalid choice")
+        # Show file preview
+        try:
+            preview = pd.read_csv(csv_file, nrows=3)
+            print(f"\n📄 File found: {csv_file}")
+            print(f"📊 Preview (first 3 rows):")
+            print(preview.to_string(index=False))
+            print(f"\n📈 Total rows in file: {len(pd.read_csv(csv_file))}")
+        except:
+            pass
+        
+        confirm = input("\n🚀 Ready to upload? (yes/no): ")
+        
+        if confirm.lower() == 'yes':
+            upload_other_sources_data(csv_file)
+        else:
+            print("❌ Upload cancelled")
+    
+    print("\n✅ Script completed!")
