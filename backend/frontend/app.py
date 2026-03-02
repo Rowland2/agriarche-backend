@@ -511,27 +511,38 @@ except Exception as e:
     st.error(f"Chart Error: {e}")
 
 # =====================================================
-# 7. STANDALONE DATA ARCHIVE TABLE (WITH PAGINATION)
+# 7. STANDALONE DATA ARCHIVE TABLE (WITH PROPER PAGINATION)
 # =====================================================
 st.markdown("---")
 st.subheader("📚 Internal Market Price Data Archive")
 
+# Initialize page state
+if "archive_page" not in st.session_state:
+    st.session_state.archive_page = 1
+
 try:
-    # Pagination controls
-    archive_col1, archive_col2, archive_col3 = st.columns([2, 2, 3])
+    archive_col1, archive_col2, archive_col3 = st.columns([2,2,3])
     
     with archive_col1:
-        archive_page = st.number_input("Page", min_value=1, value=1, step=1, key="archive_page")
+        archive_page_size = st.selectbox(
+            "Records per page",
+            [50,100,200,500],
+            index=1,
+            key="archive_page_size"
+        )
     
     with archive_col2:
-        archive_page_size = st.selectbox("Records per page", [50, 100, 200, 500], index=1, key="archive_page_size")
+        st.write(f"Current Page: {st.session_state.archive_page}")
     
     with archive_col3:
-        hist_search = st.text_input("🔍 Search", placeholder="Search by market, year, or commodity...", key="hist_search_bar")
+        hist_search = st.text_input(
+            "🔍 Search",
+            placeholder="Search by market, year, or commodity..."
+        )
     
-    # Build query params
+    # Build params with session state
     params = {
-        "page": archive_page,
+        "page": st.session_state.archive_page,
         "page_size": archive_page_size
     }
     
@@ -550,20 +561,20 @@ try:
             df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
             df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
             
-            # Apply commodity name normalization (Color First format)
+            # Apply commodity name normalization
             df_hist["commodity"] = df_hist["commodity"].apply(normalize_commodity_for_display)
             
-            # Sort by date, commodity, and market to calculate price changes
+            # Sort by date, commodity, and market
             df_hist = df_hist.sort_values(['commodity', 'market', 'Date'])
             
-            # Calculate price change (% change from previous record)
+            # Calculate price change
             df_hist['Previous Price (₦)'] = df_hist.groupby(['commodity', 'market'])['Price per Kg (₦)'].shift(1)
             df_hist['% Change'] = ((df_hist['Price per Kg (₦)'] - df_hist['Previous Price (₦)']) / df_hist['Previous Price (₦)'] * 100).round(2)
             
             # Format date for display
             df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
-            # Selecting columns to display - With Price per Bag AND % Change
+            # Select columns to display
             display_cols = ["Date_Display", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
@@ -574,12 +585,12 @@ try:
                 "market": "Market"
             })
 
-            # Apply Search Filter (client-side on current page)
+            # Apply Search Filter
             if hist_search:
                 mask = hist_display.apply(lambda row: row.astype(str).str.contains(hist_search, case=False).any(), axis=1)
                 hist_display = hist_display[mask]
             
-            # Display sorted by newest date first
+            # Display table
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
                     "Price per Kg (₦)": "{:,.2f}",
@@ -591,24 +602,33 @@ try:
                 height=400
             )
             
-            # Pagination info and navigation
+            # Pagination info
             st.caption(f"Showing page {pagination.get('page', 1)} of {pagination.get('total_pages', 1)} | Total records: {pagination.get('total_records', 0):,}")
             
-            nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+            # Navigation buttons
+            nav_col1, nav_col2, nav_col3 = st.columns([1,2,1])
             
             with nav_col1:
                 if pagination.get('has_previous', False):
-                    if st.button(" Previous", key="archive_prev"):
+                    if st.button("⬅ Previous", key="archive_prev"):
+                        st.session_state.archive_page -= 1
                         st.rerun()
+            
+            with nav_col2:
+                st.write(f"Page {pagination.get('page',1)} of {pagination.get('total_pages',1)}")
             
             with nav_col3:
                 if pagination.get('has_next', False):
-                    if st.button("Next ", key="archive_next"):
+                    if st.button("Next ➡", key="archive_next"):
+                        st.session_state.archive_page += 1
                         st.rerun()
         else:
             st.info("No records available in the database archive.")
+    else:
+        st.error(f"Failed to fetch archive data. Status code: {full_res.status_code}")
+        
 except Exception as e:
-    st.error(f"Archive Table Error: {e}")
+    st.error(f"Archive Table Error: {e}"
 
 # =====================================================
 # 8. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
@@ -951,25 +971,29 @@ except Exception as e:
     st.error(f"Monthly Report Error: {e}")
 
 # =====================================================
-# 10. OTHER SOURCES COMMODITY PRICES (MOVED TO END)
+# 10. OTHER SOURCES COMMODITY PRICES (WITH PROPER PAGINATION)
 # =====================================================
 st.markdown("---")
 st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sourced Market Prices</h1>", unsafe_allow_html=True)
 
+# Initialize page state for other sources
+if "os_page" not in st.session_state:
+    st.session_state.os_page = 1
+
 try:
-    # Pagination controls for Other Sources (add at top of section)
+    # Pagination controls for Other Sources
     os_col1, os_col2 = st.columns(2)
     
     with os_col1:
-        os_page = st.number_input("Page", min_value=1, value=1, step=1, key="os_page")
-    
-    with os_col2:
         os_page_size = st.selectbox("Records per page", [100, 200, 500, 1000], index=0, key="os_page_size")
     
-    # Fetch other sources data with pagination
+    with os_col2:
+        st.write(f"Current Page: {st.session_state.os_page}")
+    
+    # Fetch other sources data with pagination using session state
     os_response = requests.get(
         f"{BASE_URL}/other-sources", 
-        params={"page": os_page, "page_size": os_page_size},
+        params={"page": st.session_state.os_page, "page_size": os_page_size},
         headers=HEADERS,
         timeout=15
     )
@@ -1010,7 +1034,7 @@ try:
             st.sidebar.markdown("---")
             st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
-            # Get commodities from dedicated API endpoint for better performance and consistency
+            # Get commodities from dedicated API endpoint
             try:
                 filters_response = requests.get(
                     f"{BASE_URL}/filters/other-sources-commodities",
@@ -1019,13 +1043,10 @@ try:
                 )
                 if filters_response.status_code == 200:
                     filters_data = filters_response.json()
-                    # Use EXACT names from database - DO NOT MODIFY!
                     os_commodities = ["All"] + filters_data['commodities']
                 else:
-                    # Fallback: get from current data
                     os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
             except Exception as e:
-                # Fallback: get from current data
                 os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
 
             # Get locations from /filters/all endpoint
@@ -1042,21 +1063,19 @@ try:
             except:
                 os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
 
-            # Independent Commodity filter for Other sources - display EXACT database values
+            # Independent filters
             selected_os_comm = st.sidebar.selectbox(
                 "Other sources Commodity", 
                 os_commodities, 
                 key="os_comm_independent"
             )
 
-            # Independent Market filter for Other sources
             selected_os_loc = st.sidebar.selectbox(
                 "Other sources Market", 
                 os_locations, 
                 key="os_loc_independent"
             )
             
-            # Independent Month filter for Other sources
             os_months = ["All", "January", "February", "March", "April", "May", "June", 
                         "July", "August", "September", "October", "November", "December"]
             selected_os_month = st.sidebar.selectbox(
@@ -1065,17 +1084,15 @@ try:
                 key="os_month_independent"
             )
             
-            # Apply INDEPENDENT filters (don't use main filters)
+            # Apply filters
             filtered_os = os_data.copy()
             
-            # Filter by selected years from MAIN sidebar (Year filter is shared)
-            # Only filter if years are selected and data has years
+            # Filter by selected years from main sidebar
             if 'selected_years' in locals() and selected_years and len(selected_years) > 0:
-                # Only filter if the year column exists and has valid data
                 if 'year' in filtered_os.columns and not filtered_os['year'].isna().all():
                     filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
             
-            # Apply Other sources specific filters
+            # Apply other sources specific filters
             if selected_os_comm != "All":
                 filtered_os = filtered_os[filtered_os['commodity'] == selected_os_comm]
             
@@ -1099,15 +1116,15 @@ try:
                 )
                 filtered_os = filtered_os[mask]
             
-            # Display table - EXACT MATCH TO SCREENSHOT
+            # Display table
             if not filtered_os.empty:
                 # Format the display dataframe
                 display_df = filtered_os[['date', 'commodity', 'location', 'unit', 'price']].copy()
                 
-                # Format date column to match screenshot
+                # Format date column
                 display_df['Date'] = display_df['date'].dt.strftime('%d %b %Y, %I:%M %p')
                 
-                # Rename columns to match screenshot
+                # Rename columns
                 display_df = display_df.rename(columns={
                     'commodity': 'Commodity',
                     'location': 'Location',
@@ -1128,14 +1145,14 @@ try:
                     height=600
                 )
 
-                # CHANGE 2: PDF Download Section
+                # Pagination info and navigation
                 st.markdown("---")
-
-                # Create two columns for download button and pagination info
+                
+                # Create columns for pagination controls
                 download_col1, download_col2 = st.columns([1, 2])
 
                 with download_col1:
-                    # PDF Download Button
+                    # PDF Download Button (keeping existing functionality)
                     if st.button("📄 Download Monthly Report (PDF)", key="download_os_pdf"):
                         try:
                             # Create PDF buffer
@@ -1162,12 +1179,12 @@ try:
                             # Prepare table data
                             table_data = [['Date', 'Commodity', 'Location', 'Price', 'Unit']]
                             
-                            for _, row in filtered_os.head(500).iterrows():  # Limit to 500 records for PDF
+                            for _, row in filtered_os.head(500).iterrows():
                                 table_data.append([
                                     str(row['date'])[:10],
                                     str(row['commodity']),
-                                    str(row['location'])[:30],  # Truncate long locations
-                                    f"N{int(row['price']):,}",  # Use N instead of ₦ for PDF compatibility
+                                    str(row['location'])[:30],
+                                    f"N{int(row['price']):,}",
                                     str(row['unit'])
                                 ])
                             
@@ -1217,17 +1234,22 @@ try:
                         unsafe_allow_html=True
                     )
                 
-                # Pagination navigation
-                os_nav_col1, os_nav_col2, os_nav_col3 = st.columns([1, 1, 1])
+                # Pagination navigation with session state
+                os_nav_col1, os_nav_col2, os_nav_col3 = st.columns([1, 2, 1])
                 
                 with os_nav_col1:
                     if os_pagination.get('has_previous', False):
-                        if st.button("⬅️ Previous", key="os_prev"):
+                        if st.button("⬅ Previous", key="os_prev"):
+                            st.session_state.os_page -= 1
                             st.rerun()
+                
+                with os_nav_col2:
+                    st.write(f"Page {os_pagination.get('page',1)} of {os_pagination.get('total_pages',1)}")
                 
                 with os_nav_col3:
                     if os_pagination.get('has_next', False):
-                        if st.button("Next ➡️", key="os_next"):
+                        if st.button("Next ➡", key="os_next"):
+                            st.session_state.os_page += 1
                             st.rerun()
             else:
                 st.warning("⚠️ No data matches your filter criteria.")
