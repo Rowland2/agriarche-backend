@@ -881,25 +881,26 @@ def search_internal_prices(
     Returns: All price data matching the search query
     """
     try:
-        # Build search query with EXACT column names from your database
+        # Build search query - ALL LOWERCASE column names
         search_query = text("""
             SELECT 
-                "Start Time" as start_time,
-                "Agent Code" as agent_code,
-                "State" as state,
-                "Market" as market,
-                "Commodity" as commodity,
-                "Price per Bag" as price_per_bag,
-                "Weight of Bag (kg)" as weight_of_bag_kg,
+                start_time,
+                agent_code,
+                state,
+                market,
+                commodity,
+                price_per_bag,
+                weight_of_bag_kg,
                 price_per_kg,
-                "Availability" as availability
+                availability,
+                commodity_type
             FROM prices
             WHERE 
-                LOWER("Commodity") LIKE LOWER(:search)
-                OR LOWER("Market") LIKE LOWER(:search)
-                OR LOWER("State") LIKE LOWER(:search)
-                OR LOWER("Agent Code") LIKE LOWER(:search)
-            ORDER BY "Start Time" DESC
+                LOWER(commodity) LIKE LOWER(:search)
+                OR LOWER(market) LIKE LOWER(:search)
+                OR LOWER(state) LIKE LOWER(:search)
+                OR LOWER(agent_code) LIKE LOWER(:search)
+            ORDER BY start_time DESC
             LIMIT :limit OFFSET :offset
         """)
         
@@ -908,10 +909,10 @@ def search_internal_prices(
             SELECT COUNT(*) as total
             FROM prices
             WHERE 
-                LOWER("Commodity") LIKE LOWER(:search)
-                OR LOWER("Market") LIKE LOWER(:search)
-                OR LOWER("State") LIKE LOWER(:search)
-                OR LOWER("Agent Code") LIKE LOWER(:search)
+                LOWER(commodity) LIKE LOWER(:search)
+                OR LOWER(market) LIKE LOWER(:search)
+                OR LOWER(state) LIKE LOWER(:search)
+                OR LOWER(agent_code) LIKE LOWER(:search)
         """)
         
         # Calculate pagination
@@ -980,7 +981,7 @@ def search_external_sources(
     Returns: All external price data matching the search query
     """
     try:
-        # Build search query with correct column names
+        # Build search query - lowercase column names
         search_query = text("""
             SELECT 
                 date,
@@ -1058,6 +1059,7 @@ def search_external_sources(
             status_code=500,
             detail=f"Search failed: {str(e)}"
         )
+
 
 
 # ============================================================
