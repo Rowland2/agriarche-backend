@@ -394,16 +394,25 @@ def get_other_sources(
 
 
 @app.get("/other-sources/filtered")
-def get_other_sources_filtered(
+def get_filtered_other_sources(
     commodity: Optional[str] = None,
     location: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    page: Optional[int] = 1,
-    page_size: Optional[int] = 100
+    month: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 100
 ):
+    """
+    Get filtered external sources data with search
+
+    Parameters:
+    - commodity: Filter by commodity name
+    - location: Filter by location/market
+    - month: Filter by month name
+    - search: Search across commodity, location, unit
+    - page: Page number
+    - page_size: Records per page
+    """
     try:
         df = fetch_other_sources_data()
 
@@ -411,60 +420,51 @@ def get_other_sources_filtered(
             return {
                 "data": [],
                 "pagination": {
-                    "page": 1,
+                    "page": page,
                     "page_size": page_size,
                     "total_records": 0,
                     "total_pages": 0,
                     "has_next": False,
                     "has_previous": False
-                },
-                "filters_applied": {
-                    "commodity": commodity,
-                    "location": location
                 }
             }
 
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        # Handle search parameter
+        if search:
+            search_lower = search.lower()
+            df = df[
+                df['commodity'].str.lower().str.contains(search_lower, na=False) |
+                df['location'].str.lower().str.contains(search_lower, na=False) |
+                df['unit'].str.lower().str.contains(search_lower, na=False)
+            ]
 
-        if commodity:
+        # Existing filters (only apply if search is not used)
+        elif commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        if location:
+
+        if location and not search:
             df = df[df['location'].str.contains(location, case=False, na=False)]
-        if min_price is not None:
-            df['price'] = pd.to_numeric(df['price'], errors='coerce')
-            df = df[df['price'] >= min_price]
-        if max_price is not None:
-            df['price'] = pd.to_numeric(df['price'], errors='coerce')
-            df = df[df['price'] <= max_price]
-        if start_date:
-            df = df[df['date'] >= pd.to_datetime(start_date)]
-        if end_date:
-            df = df[df['date'] <= pd.to_datetime(end_date)]
 
-        if 'date' in df.columns:
-            df['date'] = df['date'].astype(str)
+        if month and not search:
+            df['date'] = pd.to_datetime(df['date'])
+            df['month_name'] = df['date'].dt.strftime('%B')
+            df = df[df['month_name'].str.lower() == month.lower()]
 
-        required_cols = ['date', 'commodity', 'location', 'unit', 'price']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = ''
-        df = df[required_cols]
+        # Sort by most recent
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date', ascending=False)
 
+        # Pagination
         total_records = len(df)
-        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
-
-        if page < 1:
-            page = 1
-        if total_pages > 0 and page > total_pages:
-            page = total_pages
+        total_pages = (total_records + page_size - 1) // page_size
 
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        df_page = df.iloc[start_idx:end_idx] if total_records > 0 else df
+
+        paginated_df = df.iloc[start_idx:end_idx]
 
         return {
-            "data": df_page.to_dict(orient='records'),
+            "data": paginated_df.to_dict('records'),
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -472,21 +472,15 @@ def get_other_sources_filtered(
                 "total_pages": total_pages,
                 "has_next": page < total_pages,
                 "has_previous": page > 1
-            },
-            "filters_applied": {
-                "commodity": commodity,
-                "location": location,
-                "min_price": min_price,
-                "max_price": max_price,
-                "start_date": start_date,
-                "end_date": end_date
             }
         }
 
     except Exception as e:
         import traceback
-        error_detail = f"Filtered other sources failed: {str(e)}\n{traceback.format_exc()}"
-        raise HTTPException(status_code=500, detail=error_detail)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch filtered other sources: {str(e)}\n{traceback.format_exc()}"
+        )
 
 
 @app.get("/intelligence/{commodity}")
@@ -759,13 +753,25 @@ def get_filtered_prices(
     commodity: Optional[str] = None,
     market: Optional[str] = None,
     state: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    month: Optional[str] = None,
+    exact: Optional[bool] = False,
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 100
 ):
+    """
+    Get filtered price data with pagination and search
+
+    Parameters:
+    - commodity: Filter by commodity name
+    - market: Filter by market
+    - state: Filter by state
+    - month: Filter by month name
+    - exact: Use exact matching instead of partial
+    - search: Search across commodity, market, state, agent_code
+    - page: Page number
+    - page_size: Records per page
+    """
     try:
         df = fetch_data()
 
@@ -773,7 +779,7 @@ def get_filtered_prices(
             return {
                 "data": [],
                 "pagination": {
-                    "page": 1,
+                    "page": page,
                     "page_size": page_size,
                     "total_records": 0,
                     "total_pages": 0,
@@ -782,73 +788,68 @@ def get_filtered_prices(
                 }
             }
 
-        if 'start_time' in df.columns:
-            df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
+        # Handle search parameter (searches across multiple fields)
+        if search:
+            search_lower = search.lower()
+            df = df[
+                df['commodity'].str.lower().str.contains(search_lower, na=False) |
+                df['market'].str.lower().str.contains(search_lower, na=False) |
+                df['state'].str.lower().str.contains(search_lower, na=False) |
+                df['agent_code'].astype(str).str.lower().str.contains(search_lower, na=False)
+            ]
 
-        if commodity:
-            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-        if market:
+        # Existing filters (only apply if search is not used)
+        elif commodity:
+            if exact:
+                df = df[df['commodity'].str.lower() == commodity.lower()]
+            else:
+                df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+
+        if market and not search:
             df = df[df['market'].str.contains(market, case=False, na=False)]
-        if state:
+
+        if state and not search:
             df = df[df['state'].str.contains(state, case=False, na=False)]
 
+        if month and not search:
+            df['start_time'] = pd.to_datetime(df['start_time'])
+            df['month_name'] = df['start_time'].dt.strftime('%B')
+            df = df[df['month_name'].str.lower() == month.lower()]
+
+        # Calculate % change
+        df = df.sort_values(['commodity', 'market', 'start_time'])
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-
-        if min_price is not None:
-            df = df[df['price_per_kg_numeric'] >= min_price]
-        if max_price is not None:
-            df = df[df['price_per_kg_numeric'] <= max_price]
-        if start_date:
-            df = df[df['start_time'] >= pd.to_datetime(start_date)]
-        if end_date:
-            df = df[df['start_time'] <= pd.to_datetime(end_date)]
-
-        if df.empty:
-            return {
-                "data": [],
-                "pagination": {
-                    "page": 1,
-                    "page_size": page_size,
-                    "total_records": 0,
-                    "total_pages": 0,
-                    "has_next": False,
-                    "has_previous": False
-                }
-            }
-
-        df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
-
-        df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
+        df['percent_change'] = df.groupby(['commodity', 'market'])['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
 
+        # Add change indicator
         df['change_indicator'] = df['percent_change'].apply(
             lambda x: '📈' if pd.notna(x) and x > 0
             else '📉' if pd.notna(x) and x < 0
             else '➡️'
         )
 
+        # Format percent change
         df['percent_change'] = df['percent_change'].apply(
             lambda x: f"+{x}%" if pd.notna(x) and x > 0
             else f"{x}%" if pd.notna(x) and x < 0
             else "None"
         )
 
-        df['start_time'] = df['start_time'].astype(str)
+        # Sort by most recent
+        df = df.sort_values('start_time', ascending=False)
 
+        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
 
-        if page < 1:
-            page = 1
-        if page > total_pages and total_pages > 0:
-            page = total_pages
-
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        df_page = df.iloc[start_idx:end_idx]
+
+        paginated_df = df.iloc[start_idx:end_idx]
 
         return {
-            "data": df_page.to_dict(orient='records'),
+            "data": paginated_df.to_dict('records'),
             "pagination": {
                 "page": page,
                 "page_size": page_size,
@@ -858,208 +859,13 @@ def get_filtered_prices(
                 "has_previous": page > 1
             }
         }
+
     except Exception as e:
         import traceback
-        print(f"Error in prices/filtered: {str(e)}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Filtered query failed: {str(e)}")
-
-
-# ============================================================
-# SEARCH ENDPOINTS
-# ============================================================
-
-@app.get("/prices/search")
-def search_internal_prices(
-    q: str,
-    page: int = 1,
-    page_size: int = 100
-):
-    """
-    Search internal market prices across all fields
-    
-    Searches: commodity, market, state, agent_code
-    Returns: All price data matching the search query
-    """
-    try:
-        # Build search query - ALL LOWERCASE column names
-        search_query = text("""
-            SELECT 
-                start_time,
-                agent_code,
-                state,
-                market,
-                commodity,
-                price_per_bag,
-                weight_of_bag_kg,
-                price_per_kg,
-                availability,
-                commodity_type
-            FROM prices
-            WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(market) LIKE LOWER(:search)
-                OR LOWER(state) LIKE LOWER(:search)
-                OR LOWER(agent_code) LIKE LOWER(:search)
-            ORDER BY start_time DESC
-            LIMIT :limit OFFSET :offset
-        """)
-        
-        # Count query
-        count_query = text("""
-            SELECT COUNT(*) as total
-            FROM prices
-            WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(market) LIKE LOWER(:search)
-                OR LOWER(state) LIKE LOWER(:search)
-                OR LOWER(agent_code) LIKE LOWER(:search)
-        """)
-        
-        # Calculate pagination
-        offset = (page - 1) * page_size
-        search_pattern = f"%{q}%"
-        
-        with engine.connect() as conn:
-            # Get total count
-            count_result = conn.execute(
-                count_query,
-                {"search": search_pattern}
-            ).fetchone()
-            total_records = count_result[0] if count_result else 0
-            
-            # Get paginated results
-            result = conn.execute(
-                search_query,
-                {
-                    "search": search_pattern,
-                    "limit": page_size,
-                    "offset": offset
-                }
-            )
-            
-            # Convert to list of dicts
-            columns = result.keys()
-            data = [dict(zip(columns, row)) for row in result]
-        
-        # Calculate pagination info
-        total_pages = (total_records + page_size - 1) // page_size
-        
-        return {
-            "data": data,
-            "pagination": {
-                "page": page,
-                "page_size": page_size,
-                "total_records": total_records,
-                "total_pages": total_pages,
-                "has_next": page < total_pages,
-                "has_previous": page > 1
-            },
-            "search_query": q,
-            "search_results_count": len(data)
-        }
-        
-    except Exception as e:
-        import traceback
-        print(f"Search error: {str(e)}")
-        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=f"Search failed: {str(e)}"
+            detail=f"Failed to fetch filtered prices: {str(e)}\n{traceback.format_exc()}"
         )
-
-
-@app.get("/other-sources/search")
-def search_external_sources(
-    q: str,
-    page: int = 1,
-    page_size: int = 100
-):
-    """
-    Search external market prices across all fields
-    
-    Searches: commodity, location, unit
-    Returns: All external price data matching the search query
-    """
-    try:
-        # Build search query - lowercase column names
-        search_query = text("""
-            SELECT 
-                date,
-                commodity,
-                location,
-                unit,
-                price
-            FROM other_sources
-            WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(location) LIKE LOWER(:search)
-                OR LOWER(unit) LIKE LOWER(:search)
-            ORDER BY date DESC
-            LIMIT :limit OFFSET :offset
-        """)
-        
-        # Count query
-        count_query = text("""
-            SELECT COUNT(*) as total
-            FROM other_sources
-            WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(location) LIKE LOWER(:search)
-                OR LOWER(unit) LIKE LOWER(:search)
-        """)
-        
-        # Calculate pagination
-        offset = (page - 1) * page_size
-        search_pattern = f"%{q}%"
-        
-        with engine.connect() as conn:
-            # Get total count
-            count_result = conn.execute(
-                count_query,
-                {"search": search_pattern}
-            ).fetchone()
-            total_records = count_result[0] if count_result else 0
-            
-            # Get paginated results
-            result = conn.execute(
-                search_query,
-                {
-                    "search": search_pattern,
-                    "limit": page_size,
-                    "offset": offset
-                }
-            )
-            
-            # Convert to list of dicts
-            columns = result.keys()
-            data = [dict(zip(columns, row)) for row in result]
-        
-        # Calculate pagination info
-        total_pages = (total_records + page_size - 1) // page_size
-        
-        return {
-            "data": data,
-            "pagination": {
-                "page": page,
-                "page_size": page_size,
-                "total_records": total_records,
-                "total_pages": total_pages,
-                "has_next": page < total_pages,
-                "has_previous": page > 1
-            },
-            "search_query": q,
-            "search_results_count": len(data)
-        }
-        
-    except Exception as e:
-        import traceback
-        print(f"Search error: {str(e)}")
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=500,
-            detail=f"Search failed: {str(e)}"
-        )
-
 
 
 # ============================================================
