@@ -685,29 +685,51 @@ try:
                 unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
 
                 # AI MARKET ADVISOR (without repeating Strategic Sourcing cards)
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader("🤖 AI Market Advisor")
-                
-                volatility = ((max_val - min_val) / min_val) * 100 if min_val > 0 else 0
-                annual_avg = all_data[all_data["commodity"].str.lower() == api_commodity_name.lower()]["price_per_kg"].mean()
-                
-                if volatility > 20:
-                    advice = f"🚨 **High Volatility Warning:** {display_name} prices are fluctuating significantly ({volatility:.1f}%). Avoid spot-buying; look for long-term fixed contracts in {best_m}."
-                    bg_adv = "#FFF4E5"
-                elif avg_val < annual_avg:
-                    advice = f"✅ **Optimal Buy Window:** Prices for {display_name} in {month_sel} are {((annual_avg-avg_val)/annual_avg)*100:.1f}% below the annual average. Strong window for inventory stocking."
-                    bg_adv = "#E8F5E9"
-                else:
-                    advice = f"ℹ️ **Market Stability:** {display_name} is showing stable price action. Proceed with standard procurement volumes, prioritizing {best_m} for the best prices."
-                    bg_adv = "#E3F2FD"
+                # AI MARKET ADVISOR - REPLACE THIS ENTIRE SECTION
+st.markdown("<br>", unsafe_allow_html=True)
+st.subheader("🤖 AI Market Advisor")
 
-                st.markdown(f"""
-                    <div class="advisor-container" style="background-color: {bg_adv};">
-                        <p style="color: #1F2937; font-size: 16px; margin: 0; line-height: 1.6;">
-                            <b>Strategic Insight for {display_name}:</b><br>{advice}
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
+# ✅ NEW: Call the actual API endpoint
+try:
+    advisor_response = requests.get(
+        f"{BASE_URL}/ai-market-advisor/{api_commodity_name}",
+        params={"month": month_sel},
+        headers=HEADERS,
+        timeout=10
+    )
+    
+    if advisor_response.status_code == 200:
+        advisor_data = advisor_response.json()
+        
+        # Get advice and confidence from API
+        advice = advisor_data.get('advice', 'No advice available')
+        confidence = advisor_data.get('confidence', 'low')
+        trend = advisor_data.get('trend', 'stable')
+        
+        # Set background color based on trend
+        if trend == 'rising':
+            bg_adv = "#FFF4E5"  # Orange for rising
+        elif trend == 'falling':
+            bg_adv = "#E8F5E9"  # Green for falling (good for buying)
+        else:
+            bg_adv = "#E3F2FD"  # Blue for stable
+        
+        # Display the AI-generated advice
+        st.markdown(f"""
+            <div class="advisor-container" style="background-color: {bg_adv};">
+                <p style="color: #1F2937; font-size: 16px; margin: 0; line-height: 1.6;">
+                    <b>Strategic Insight for {display_name}:</b><br>{advice}
+                </p>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                    <b>Trend:</b> {trend.capitalize()} | <b>Confidence:</b> {confidence.capitalize()}
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.warning("AI Market Advisor temporarily unavailable")
+        
+except Exception as e:
+    st.error(f"Could not fetch AI market advice: {str(e)}")
                 
                 # =====================================================
                 # DETAILED GAP ANALYSIS TABLE (WITH PAGINATION)
