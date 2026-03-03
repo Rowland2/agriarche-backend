@@ -1,11 +1,16 @@
 """
 Upload Other Sources (External) Market Data to Agriarche Backend
 ==============================================================
-This script uploads externally sourced market price data with:
+This script uploads externally sourced market price data from Excel files with:
 - Automatic commodity name standardization
 - Data quality validation
 - Duplicate prevention
 - Bulk upload optimization
+
+Requirements:
+  pip install pandas openpyxl requests
+
+Supported formats: .xlsx, .xls
 
 Author: Agriarche Team
 Last Updated: March 2026
@@ -213,17 +218,17 @@ def validate_data_quality(df):
 # =====================================================
 # UPLOAD FUNCTION
 # =====================================================
-def upload_other_sources_data(csv_file_path):
+def upload_other_sources_data(excel_file_path):
     """
-    Upload other sources data from CSV file using bulk upload
+    Upload other sources data from Excel file using bulk upload
     
     Args:
-        csv_file_path (str): Path to CSV file
+        excel_file_path (str): Path to Excel file (.xlsx or .xls)
     """
     try:
-        # Load CSV
-        print(f"\n📂 Loading data from: {csv_file_path}")
-        df = pd.read_csv(csv_file_path)
+        # Load Excel
+        print(f"\n📂 Loading data from: {excel_file_path}")
+        df = pd.read_excel(excel_file_path)
         
         print(f"✅ Loaded {len(df)} records")
         
@@ -366,7 +371,7 @@ def upload_other_sources_data(csv_file_path):
         print("="*60)
         
     except FileNotFoundError:
-        print(f"❌ Error: File not found: {csv_file_path}")
+        print(f"❌ Error: File not found: {excel_file_path}")
     except Exception as e:
         print(f"❌ Upload failed: {str(e)}")
 
@@ -380,34 +385,34 @@ if __name__ == "__main__":
     print("="*60)
     
     # Get file path from user
-    csv_file = input("\n📁 Enter CSV file path (or press Enter for default 'other_sources_data.csv'): ").strip()
+    excel_file = input("\n📁 Enter Excel file path (or press Enter for default 'other_sources_data.xlsx'): ").strip()
     
-    if not csv_file:
-        csv_file = "other_sources_data.csv"
+    if not excel_file:
+        excel_file = "other_sources_data.xlsx"
     
     # Check if file exists
-    if not os.path.exists(csv_file):
-        print(f"\n❌ File not found: {csv_file}")
-        print("\n💡 Make sure the file is in the same folder as this script,")
-        print("   or provide the full path (e.g., C:/Users/YourName/Documents/other_sources_data.csv)")
-        print("\n📋 Expected CSV format:")
+    if not os.path.exists(excel_file):
+        print(f"\n❌ File not found: {excel_file}")
+        print("\n💡 Make sure the Excel file is in the same folder as this script,")
+        print("   or provide the full path (e.g., C:/Users/YourName/Documents/other_sources_data.xlsx)")
+        print("\n📋 Expected Excel columns:")
         print("   date, commodity, location, unit, price")
-        print("   2026-01-15, Soybeans, Dawanau Market Kano State, bag, 85000")
+        print("\n📋 Supported formats: .xlsx, .xls")
     else:
         # Show file preview
         try:
-            preview = pd.read_csv(csv_file, nrows=3)
-            print(f"\n📄 File found: {csv_file}")
+            preview = pd.read_excel(excel_file, nrows=3)
+            print(f"\n📄 File found: {excel_file}")
             print(f"📊 Preview (first 3 rows):")
             print(preview.to_string(index=False))
-            print(f"\n📈 Total rows in file: {len(pd.read_csv(csv_file))}")
+            print(f"\n📈 Total rows in file: {len(pd.read_excel(excel_file))}")
         except:
             pass
         
         confirm = input("\n🚀 Ready to upload? (yes/no): ")
         
         if confirm.lower() == 'yes':
-            upload_other_sources_data(csv_file)
+            upload_other_sources_data(excel_file)
         else:
             print("❌ Upload cancelled")
     
