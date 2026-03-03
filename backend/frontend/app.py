@@ -62,7 +62,7 @@ def normalize_commodity_for_display(name):
     elif "soya" in name_lower or "soy" in name_lower:
         return "Soybeans"
     elif "honey" in name_lower:
-        return "Honey beans"
+        return "Honey Beans"
     elif "rice" in name_lower and "paddy" in name_lower:
         return "Rice Paddy"
     elif "rice" in name_lower and "process" in name_lower:
@@ -90,7 +90,7 @@ def convert_display_to_api_format(display_name):
         "Yellow Sorghum": "Sorghum Yellow",
         "Sorghum": "Sorghum",
        "Soybeans": "Soybeans",
-        "Honey beans": "Honey beans",
+        "Honey beans": "Honey Beans",
         "Rice Paddy": "Rice Paddy",
         "Processed Rice": "Rice processed",
         "Millet": "Millet",
