@@ -874,29 +874,32 @@ def search_internal_prices(
     page: int = 1,
     page_size: int = 100
 ):
-    """Search internal market prices across all fields"""
+    """
+    Search internal market prices across all fields
+    
+    Searches: commodity, market, state, agent_code
+    Returns: All price data matching the search query
+    """
     try:
-        # Build search query
+        # Build search query with EXACT column names from your database
         search_query = text("""
             SELECT 
-                id,
-                start_time,
-                agent_code,
-                state,
-                market,
-                commodity,
-                price_per_bag,
-                weight_of_bag_kg,
+                "Start Time" as start_time,
+                "Agent Code" as agent_code,
+                "State" as state,
+                "Market" as market,
+                "Commodity" as commodity,
+                "Price per Bag" as price_per_bag,
+                "Weight of Bag (kg)" as weight_of_bag_kg,
                 price_per_kg,
-                availability,
-                commodity_type
+                "Availability" as availability
             FROM prices
             WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(market) LIKE LOWER(:search)
-                OR LOWER(state) LIKE LOWER(:search)
-                OR LOWER(agent_code) LIKE LOWER(:search)
-            ORDER BY start_time DESC
+                LOWER("Commodity") LIKE LOWER(:search)
+                OR LOWER("Market") LIKE LOWER(:search)
+                OR LOWER("State") LIKE LOWER(:search)
+                OR LOWER("Agent Code") LIKE LOWER(:search)
+            ORDER BY "Start Time" DESC
             LIMIT :limit OFFSET :offset
         """)
         
@@ -905,10 +908,10 @@ def search_internal_prices(
             SELECT COUNT(*) as total
             FROM prices
             WHERE 
-                LOWER(commodity) LIKE LOWER(:search)
-                OR LOWER(market) LIKE LOWER(:search)
-                OR LOWER(state) LIKE LOWER(:search)
-                OR LOWER(agent_code) LIKE LOWER(:search)
+                LOWER("Commodity") LIKE LOWER(:search)
+                OR LOWER("Market") LIKE LOWER(:search)
+                OR LOWER("State") LIKE LOWER(:search)
+                OR LOWER("Agent Code") LIKE LOWER(:search)
         """)
         
         # Calculate pagination
@@ -970,12 +973,16 @@ def search_external_sources(
     page: int = 1,
     page_size: int = 100
 ):
-    """Search external market prices across all fields"""
+    """
+    Search external market prices across all fields
+    
+    Searches: commodity, location, unit
+    Returns: All external price data matching the search query
+    """
     try:
-        # Build search query
+        # Build search query with correct column names
         search_query = text("""
             SELECT 
-                id,
                 date,
                 commodity,
                 location,
