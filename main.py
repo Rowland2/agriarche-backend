@@ -874,16 +874,11 @@ def search_internal_prices(
     page: int = 1,
     page_size: int = 100
 ):
-    """
-    Search internal market prices across all fields.
-
-    Examples:
-    - /prices/search?q=Soybeans&page=1&page_size=50
-    - /prices/search?q=Giwa&page=1&page_size=100
-    """
+    """Search internal market prices across all fields"""
     try:
+        # Build search query
         search_query = text("""
-            SELECT
+            SELECT 
                 id,
                 start_time,
                 agent_code,
@@ -896,68 +891,55 @@ def search_internal_prices(
                 availability,
                 commodity_type
             FROM prices
-            WHERE
+            WHERE 
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(market) LIKE LOWER(:search)
                 OR LOWER(state) LIKE LOWER(:search)
                 OR LOWER(agent_code) LIKE LOWER(:search)
-                OR CAST(price_per_kg AS TEXT) LIKE :search
-                OR CAST(price_per_bag AS TEXT) LIKE :search
             ORDER BY start_time DESC
             LIMIT :limit OFFSET :offset
         """)
-
+        
+        # Count query
         count_query = text("""
             SELECT COUNT(*) as total
             FROM prices
-            WHERE
+            WHERE 
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(market) LIKE LOWER(:search)
                 OR LOWER(state) LIKE LOWER(:search)
                 OR LOWER(agent_code) LIKE LOWER(:search)
-                OR CAST(price_per_kg AS TEXT) LIKE :search
-                OR CAST(price_per_bag AS TEXT) LIKE :search
         """)
-
+        
+        # Calculate pagination
         offset = (page - 1) * page_size
         search_pattern = f"%{q}%"
-
+        
         with engine.connect() as conn:
-            count_result = conn.execute(count_query, {"search": search_pattern}).fetchone()
+            # Get total count
+            count_result = conn.execute(
+                count_query,
+                {"search": search_pattern}
+            ).fetchone()
             total_records = count_result[0] if count_result else 0
-
+            
+            # Get paginated results
             result = conn.execute(
                 search_query,
-                {"search": search_pattern, "limit": page_size, "offset": offset}
+                {
+                    "search": search_pattern,
+                    "limit": page_size,
+                    "offset": offset
+                }
             )
+            
+            # Convert to list of dicts
             columns = result.keys()
             data = [dict(zip(columns, row)) for row in result]
-
+        
+        # Calculate pagination info
         total_pages = (total_records + page_size - 1) // page_size
-
-        if data:
-            df = pd.DataFrame(data)
-            df['start_time'] = pd.to_datetime(df['start_time'])
-            df = df.sort_values(['commodity', 'market', 'start_time'])
-
-            df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-            df['previous_price'] = df.groupby(['commodity', 'market'])['price_per_kg_numeric'].shift(1)
-            df['percent_change'] = ((df['price_per_kg_numeric'] - df['previous_price']) / df['previous_price'] * 100).round(2)
-
-            df['percent_change'] = df['percent_change'].apply(
-                lambda x: f"+{x}%" if pd.notna(x) and x > 0
-                else f"{x}%" if pd.notna(x) and x < 0
-                else "None"
-            )
-
-            df['change_indicator'] = df['percent_change'].apply(
-                lambda x: '📈' if '+' in str(x)
-                else '📉' if '-' in str(x) and x != "None"
-                else '➡️'
-            )
-
-            data = df.to_dict('records')
-
+        
         return {
             "data": data,
             "pagination": {
@@ -971,12 +953,14 @@ def search_internal_prices(
             "search_query": q,
             "search_results_count": len(data)
         }
-
+        
     except Exception as e:
         import traceback
+        print(f"Search error: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=f"Search failed: {str(e)}\n{traceback.format_exc()}"
+            detail=f"Search failed: {str(e)}"
         )
 
 
@@ -986,16 +970,11 @@ def search_external_sources(
     page: int = 1,
     page_size: int = 100
 ):
-    """
-    Search external market prices across all fields.
-
-    Examples:
-    - /other-sources/search?q=Soybeans&page=1&page_size=50
-    - /other-sources/search?q=Dawanau&page=1&page_size=100
-    """
+    """Search external market prices across all fields"""
     try:
+        # Build search query
         search_query = text("""
-            SELECT
+            SELECT 
                 id,
                 date,
                 commodity,
@@ -1003,41 +982,53 @@ def search_external_sources(
                 unit,
                 price
             FROM other_sources
-            WHERE
+            WHERE 
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(location) LIKE LOWER(:search)
                 OR LOWER(unit) LIKE LOWER(:search)
-                OR CAST(price AS TEXT) LIKE :search
             ORDER BY date DESC
             LIMIT :limit OFFSET :offset
         """)
-
+        
+        # Count query
         count_query = text("""
             SELECT COUNT(*) as total
             FROM other_sources
-            WHERE
+            WHERE 
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(location) LIKE LOWER(:search)
                 OR LOWER(unit) LIKE LOWER(:search)
-                OR CAST(price AS TEXT) LIKE :search
         """)
-
+        
+        # Calculate pagination
         offset = (page - 1) * page_size
         search_pattern = f"%{q}%"
-
+        
         with engine.connect() as conn:
-            count_result = conn.execute(count_query, {"search": search_pattern}).fetchone()
+            # Get total count
+            count_result = conn.execute(
+                count_query,
+                {"search": search_pattern}
+            ).fetchone()
             total_records = count_result[0] if count_result else 0
-
+            
+            # Get paginated results
             result = conn.execute(
                 search_query,
-                {"search": search_pattern, "limit": page_size, "offset": offset}
+                {
+                    "search": search_pattern,
+                    "limit": page_size,
+                    "offset": offset
+                }
             )
+            
+            # Convert to list of dicts
             columns = result.keys()
             data = [dict(zip(columns, row)) for row in result]
-
+        
+        # Calculate pagination info
         total_pages = (total_records + page_size - 1) // page_size
-
+        
         return {
             "data": data,
             "pagination": {
@@ -1051,12 +1042,14 @@ def search_external_sources(
             "search_query": q,
             "search_results_count": len(data)
         }
-
+        
     except Exception as e:
         import traceback
+        print(f"Search error: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=f"Search failed: {str(e)}\n{traceback.format_exc()}"
+            detail=f"Search failed: {str(e)}"
         )
 
 
