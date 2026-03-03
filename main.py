@@ -274,13 +274,6 @@ def get_prices_with_change(
     page_size: Optional[int] = 100,
     commodity: Optional[str] = None
 ):
-    """
-    Get prices with percentage change calculation
-
-    Examples:
-    - /prices-with-change?page=1&page_size=20
-    - /prices-with-change?commodity=Brown Cowpea&page=1&page_size=20
-    """
     try:
         df = fetch_data()
 
@@ -297,10 +290,8 @@ def get_prices_with_change(
                 }
             }
 
-        # Convert dates
         df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
 
-        # Filter by commodity if provided
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
 
@@ -317,33 +308,23 @@ def get_prices_with_change(
                 }
             }
 
-        # Sort by commodity and date (newest first)
         df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
-
-        # Convert price to numeric
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
-
-        # Calculate % change for each commodity
-        # This compares each row to the previous row within the same commodity
         df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
 
-        # Add change indicator emoji
         df['change_indicator'] = df['percent_change'].apply(
             lambda x: '📈' if pd.notna(x) and x > 0
             else '📉' if pd.notna(x) and x < 0
             else '➡️'
         )
 
-        # Replace NaN with "N/A" string
         df['percent_change'] = df['percent_change'].apply(
             lambda x: str(x) if pd.notna(x) else 'N/A'
         )
 
-        # Convert dates back to string for JSON
         df['start_time'] = df['start_time'].astype(str)
 
-        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
 
@@ -448,21 +429,16 @@ def get_other_sources_filtered(
 
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-
         if location:
             df = df[df['location'].str.contains(location, case=False, na=False)]
-
         if min_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] >= min_price]
-
         if max_price is not None:
             df['price'] = pd.to_numeric(df['price'], errors='coerce')
             df = df[df['price'] <= max_price]
-
         if start_date:
             df = df[df['date'] >= pd.to_datetime(start_date)]
-
         if end_date:
             df = df[df['date'] <= pd.to_datetime(end_date)]
 
@@ -515,10 +491,6 @@ def get_other_sources_filtered(
 
 @app.get("/intelligence/{commodity}")
 def get_intelligence(commodity: str):
-    """
-    Get detailed market intelligence for a commodity.
-    Returns description, key markets, abundance periods, and notes.
-    """
     commodity_lower = commodity.lower().strip()
 
     info = CROP_INTELLIGENCE.get(
@@ -539,15 +511,7 @@ def get_intelligence(commodity: str):
 
 @app.get("/ai-market-advisor/{commodity}")
 def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
-    """
-    Get AI-powered market recommendations and insights
-
-    Examples:
-    - /ai-market-advisor/Brown Cowpea
-    - /ai-market-advisor/Brown Cowpea?month=January
-    """
     try:
-        # Get all price data
         df = fetch_data()
 
         if df.empty:
@@ -559,8 +523,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             }
 
         df['start_time'] = pd.to_datetime(df['start_time'])
-
-        # Filter by commodity
         df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False)]
 
         if df_commodity.empty:
@@ -573,7 +535,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
                 "available_commodities": available[:10]
             }
 
-        # Filter by month if provided
         if month:
             df_commodity['month_name'] = df_commodity['start_time'].dt.strftime('%B')
             df_commodity = df_commodity[df_commodity['month_name'].str.lower() == month.lower()]
@@ -586,7 +547,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
                     "recommendations": []
                 }
 
-        # Calculate price statistics
         df_commodity['price_per_kg'] = pd.to_numeric(df_commodity['price_per_kg'], errors='coerce')
         df_commodity = df_commodity.dropna(subset=['price_per_kg'])
 
@@ -600,8 +560,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
 
         avg_price = df_commodity['price_per_kg'].mean()
         std_dev = df_commodity['price_per_kg'].std()
-
-        # Find best and worst markets
         market_avg = df_commodity.groupby('market')['price_per_kg'].mean()
 
         if len(market_avg) == 0:
@@ -617,7 +575,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         best_price = market_avg.min()
         worst_price = market_avg.max()
 
-        # Calculate price trend
         trend = "stable"
         trend_percent = 0
 
@@ -629,14 +586,13 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
 
                 if pd.notna(recent_avg) and pd.notna(previous_avg) and previous_avg > 0:
                     diff = recent_avg - previous_avg
-                    if abs(diff) > previous_avg * 0.02:  # More than 2% change
+                    if abs(diff) > previous_avg * 0.02:
                         trend = "rising" if diff > 0 else "falling"
                         trend_percent = abs((diff / previous_avg) * 100)
             except:
                 trend = "stable"
                 trend_percent = 0
 
-        # Generate AI advice
         if trend == "rising":
             price_advice = f"Prices are trending upward ({trend_percent:.1f}% increase). Consider sourcing soon before further increases."
         elif trend == "falling":
@@ -644,7 +600,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         else:
             price_advice = "Prices are stable. Good time to source at predictable rates."
 
-        # Market recommendation
         if best_market != worst_market:
             savings = worst_price - best_price
             savings_percent = (savings / worst_price * 100) if worst_price > 0 else 0
@@ -652,14 +607,12 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         else:
             market_advice = f" Average price across markets: ₦{avg_price:.2f}/kg."
 
-        # Volatility assessment
         if pd.notna(std_dev) and avg_price > 0:
             volatility = "high" if std_dev > avg_price * 0.2 else "moderate" if std_dev > avg_price * 0.1 else "low"
         else:
             volatility = "low"
 
         volatility_advice = f" Market volatility is {volatility}."
-
         full_advice = price_advice + market_advice + volatility_advice
 
         return {
@@ -696,7 +649,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
     except Exception as e:
         import traceback
         error_detail = f"AI advisor failed: {str(e)}\n{traceback.format_exc()}"
-        print(error_detail)  # Log to console for debugging
+        print(error_detail)
 
         return {
             "commodity": commodity,
@@ -813,11 +766,6 @@ def get_filtered_prices(
     page: int = 1,
     page_size: int = 100
 ):
-    """
-    Get filtered prices with automatic % change calculation
-
-    ✅ NOW INCLUDES: percent_change and change_indicator fields automatically!
-    """
     try:
         df = fetch_data()
 
@@ -834,11 +782,9 @@ def get_filtered_prices(
                 }
             }
 
-        # Convert dates
         if 'start_time' in df.columns:
             df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
 
-        # Apply all filters
         if commodity:
             df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
         if market:
@@ -846,7 +792,6 @@ def get_filtered_prices(
         if state:
             df = df[df['state'].str.contains(state, case=False, na=False)]
 
-        # Convert price to numeric for filtering and calculations
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
 
         if min_price is not None:
@@ -871,32 +816,25 @@ def get_filtered_prices(
                 }
             }
 
-        # Sort by commodity and date (newest first) for % change calculation
         df = df.sort_values(['commodity', 'start_time'], ascending=[True, False])
 
-        # ✅ CALCULATE % CHANGE
-        # Compare each row to the previous row within the same commodity
         df['percent_change'] = df.groupby('commodity')['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
 
-        # Add change indicator emoji
         df['change_indicator'] = df['percent_change'].apply(
             lambda x: '📈' if pd.notna(x) and x > 0
             else '📉' if pd.notna(x) and x < 0
             else '➡️'
         )
 
-        # Format percent_change for display
         df['percent_change'] = df['percent_change'].apply(
             lambda x: f"+{x}%" if pd.notna(x) and x > 0
             else f"{x}%" if pd.notna(x) and x < 0
             else "None"
         )
 
-        # Convert dates back to string for JSON
         df['start_time'] = df['start_time'].astype(str)
 
-        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
 
@@ -925,38 +863,27 @@ def get_filtered_prices(
         print(f"Error in prices/filtered: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Filtered query failed: {str(e)}")
 
-        # =====================================================
-# BACKEND SEARCH ENDPOINTS - ADD TO main.py
-# =====================================================
 
-"""
-Add these two new endpoints to your main.py file.
-These provide powerful backend search functionality across all fields.
-"""
+# ============================================================
+# SEARCH ENDPOINTS
+# ============================================================
 
 @app.get("/prices/search")
 def search_internal_prices(
-    q: str,  # Search query
+    q: str,
     page: int = 1,
     page_size: int = 100
 ):
     """
-    Search internal market prices across all fields
-    
-    Query Parameters:
-    - q: Search query (searches across commodity, market, state, agent_code)
-    - page: Page number (default: 1)
-    - page_size: Records per page (default: 100)
-    
-    Example:
-    /prices/search?q=Soybeans&page=1&page_size=50
-    /prices/search?q=Giwa&page=1&page_size=100
-    /prices/search?q=630&page=1&page_size=50  (searches prices too)
+    Search internal market prices across all fields.
+
+    Examples:
+    - /prices/search?q=Soybeans&page=1&page_size=50
+    - /prices/search?q=Giwa&page=1&page_size=100
     """
     try:
-        # Build search query - searches across multiple fields
         search_query = text("""
-            SELECT 
+            SELECT
                 id,
                 start_time,
                 agent_code,
@@ -969,7 +896,7 @@ def search_internal_prices(
                 availability,
                 commodity_type
             FROM prices
-            WHERE 
+            WHERE
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(market) LIKE LOWER(:search)
                 OR LOWER(state) LIKE LOWER(:search)
@@ -979,12 +906,11 @@ def search_internal_prices(
             ORDER BY start_time DESC
             LIMIT :limit OFFSET :offset
         """)
-        
-        # Count query
+
         count_query = text("""
             SELECT COUNT(*) as total
             FROM prices
-            WHERE 
+            WHERE
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(market) LIKE LOWER(:search)
                 OR LOWER(state) LIKE LOWER(:search)
@@ -992,64 +918,46 @@ def search_internal_prices(
                 OR CAST(price_per_kg AS TEXT) LIKE :search
                 OR CAST(price_per_bag AS TEXT) LIKE :search
         """)
-        
-        # Calculate pagination
+
         offset = (page - 1) * page_size
         search_pattern = f"%{q}%"
-        
+
         with engine.connect() as conn:
-            # Get total count
-            count_result = conn.execute(
-                count_query,
-                {"search": search_pattern}
-            ).fetchone()
+            count_result = conn.execute(count_query, {"search": search_pattern}).fetchone()
             total_records = count_result[0] if count_result else 0
-            
-            # Get paginated results
+
             result = conn.execute(
                 search_query,
-                {
-                    "search": search_pattern,
-                    "limit": page_size,
-                    "offset": offset
-                }
+                {"search": search_pattern, "limit": page_size, "offset": offset}
             )
-            
-            # Convert to list of dicts
             columns = result.keys()
             data = [dict(zip(columns, row)) for row in result]
-        
-        # Calculate pagination info
+
         total_pages = (total_records + page_size - 1) // page_size
-        
-        # Calculate % change for results
+
         if data:
             df = pd.DataFrame(data)
             df['start_time'] = pd.to_datetime(df['start_time'])
             df = df.sort_values(['commodity', 'market', 'start_time'])
-            
-            # Calculate % change
+
             df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
             df['previous_price'] = df.groupby(['commodity', 'market'])['price_per_kg_numeric'].shift(1)
             df['percent_change'] = ((df['price_per_kg_numeric'] - df['previous_price']) / df['previous_price'] * 100).round(2)
-            
-            # Format for display
+
             df['percent_change'] = df['percent_change'].apply(
-                lambda x: f"+{x}%" if pd.notna(x) and x > 0 
+                lambda x: f"+{x}%" if pd.notna(x) and x > 0
                 else f"{x}%" if pd.notna(x) and x < 0
                 else "None"
             )
-            
-            # Add change indicator
+
             df['change_indicator'] = df['percent_change'].apply(
-                lambda x: '📈' if '+' in str(x) 
+                lambda x: '📈' if '+' in str(x)
                 else '📉' if '-' in str(x) and x != "None"
                 else '➡️'
             )
-            
-            # Convert back to dict
+
             data = df.to_dict('records')
-        
+
         return {
             "data": data,
             "pagination": {
@@ -1063,7 +971,7 @@ def search_internal_prices(
             "search_query": q,
             "search_results_count": len(data)
         }
-        
+
     except Exception as e:
         import traceback
         raise HTTPException(
@@ -1071,29 +979,23 @@ def search_internal_prices(
             detail=f"Search failed: {str(e)}\n{traceback.format_exc()}"
         )
 
-        @app.get("/other-sources/search")
+
+@app.get("/other-sources/search")
 def search_external_sources(
-    q: str,  # Search query
+    q: str,
     page: int = 1,
     page_size: int = 100
 ):
     """
-    Search external market prices across all fields
-    
-    Query Parameters:
-    - q: Search query (searches across commodity, location, unit)
-    - page: Page number (default: 1)
-    - page_size: Records per page (default: 100)
-    
-    Example:
-    /other-sources/search?q=Soybeans&page=1&page_size=50
-    /other-sources/search?q=Dawanau&page=1&page_size=100
-    /other-sources/search?q=bag&page=1&page_size=50
+    Search external market prices across all fields.
+
+    Examples:
+    - /other-sources/search?q=Soybeans&page=1&page_size=50
+    - /other-sources/search?q=Dawanau&page=1&page_size=100
     """
     try:
-        # Build search query
         search_query = text("""
-            SELECT 
+            SELECT
                 id,
                 date,
                 commodity,
@@ -1101,7 +1003,7 @@ def search_external_sources(
                 unit,
                 price
             FROM other_sources
-            WHERE 
+            WHERE
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(location) LIKE LOWER(:search)
                 OR LOWER(unit) LIKE LOWER(:search)
@@ -1109,47 +1011,33 @@ def search_external_sources(
             ORDER BY date DESC
             LIMIT :limit OFFSET :offset
         """)
-        
-        # Count query
+
         count_query = text("""
             SELECT COUNT(*) as total
             FROM other_sources
-            WHERE 
+            WHERE
                 LOWER(commodity) LIKE LOWER(:search)
                 OR LOWER(location) LIKE LOWER(:search)
                 OR LOWER(unit) LIKE LOWER(:search)
                 OR CAST(price AS TEXT) LIKE :search
         """)
-        
-        # Calculate pagination
+
         offset = (page - 1) * page_size
         search_pattern = f"%{q}%"
-        
+
         with engine.connect() as conn:
-            # Get total count
-            count_result = conn.execute(
-                count_query,
-                {"search": search_pattern}
-            ).fetchone()
+            count_result = conn.execute(count_query, {"search": search_pattern}).fetchone()
             total_records = count_result[0] if count_result else 0
-            
-            # Get paginated results
+
             result = conn.execute(
                 search_query,
-                {
-                    "search": search_pattern,
-                    "limit": page_size,
-                    "offset": offset
-                }
+                {"search": search_pattern, "limit": page_size, "offset": offset}
             )
-            
-            # Convert to list of dicts
             columns = result.keys()
             data = [dict(zip(columns, row)) for row in result]
-        
-        # Calculate pagination info
+
         total_pages = (total_records + page_size - 1) // page_size
-        
+
         return {
             "data": data,
             "pagination": {
@@ -1163,7 +1051,7 @@ def search_external_sources(
             "search_query": q,
             "search_results_count": len(data)
         }
-        
+
     except Exception as e:
         import traceback
         raise HTTPException(
@@ -1292,47 +1180,37 @@ def get_other_sources_commodities():
 
 @app.get("/filters/all")
 def get_all_filters():
-    """
-    Get all filter values in ONE database call
-    Much faster for dashboards.
-    """
     try:
-
         commodities_query = """
             SELECT DISTINCT TRIM(commodity) AS commodity
             FROM prices
             WHERE commodity IS NOT NULL AND commodity != ''
             ORDER BY commodity
         """
-
         markets_query = """
             SELECT DISTINCT TRIM(market) AS market
             FROM prices
             WHERE market IS NOT NULL AND market != ''
             ORDER BY market
         """
-
         states_query = """
             SELECT DISTINCT TRIM(state) AS state
             FROM prices
             WHERE state IS NOT NULL AND state != ''
             ORDER BY state
         """
-
         years_query = """
             SELECT DISTINCT EXTRACT(YEAR FROM start_time) AS year
             FROM prices
             WHERE start_time IS NOT NULL
             ORDER BY year DESC
         """
-
         other_commodities_query = """
             SELECT DISTINCT TRIM(commodity) AS commodity
             FROM other_sources
             WHERE commodity IS NOT NULL AND commodity != ''
             ORDER BY commodity
         """
-
         other_locations_query = """
             SELECT DISTINCT TRIM(location) AS location
             FROM other_sources
@@ -1341,12 +1219,10 @@ def get_all_filters():
         """
 
         with engine.connect() as conn:
-
             commodities = [row[0] for row in conn.execute(text(commodities_query))]
             markets = [row[0] for row in conn.execute(text(markets_query))]
             states = [row[0] for row in conn.execute(text(states_query))]
             years = [str(int(row[0])) for row in conn.execute(text(years_query))]
-
             other_commodities = [row[0] for row in conn.execute(text(other_commodities_query))]
             other_locations = [row[0] for row in conn.execute(text(other_locations_query))]
 
@@ -1375,25 +1251,16 @@ def get_all_filters():
 
 @app.get("/market-comparison")
 def get_market_comparison(commodity: str, month: str):
-    """
-    Get market comparison - ONLY returns markets that carry the selected commodity
-    
-    ✅ NEW: Filters out markets that don't have the commodity
-    """
     try:
-        # 1. Get internal prices (Kasuwa data)
         df_internal = fetch_data()
         df_internal['start_time'] = pd.to_datetime(df_internal['start_time'])
         df_internal['month_name'] = df_internal['start_time'].dt.strftime('%B')
-        
-        # Filter by commodity AND month
+
         df_internal = df_internal[
             (df_internal['commodity'].str.contains(commodity, case=False, na=False)) &
             (df_internal['month_name'].str.lower() == month.lower())
         ]
         df_internal['price_per_kg'] = pd.to_numeric(df_internal['price_per_kg'], errors='coerce')
-        
-        # Remove zero/null prices
         df_internal = df_internal[df_internal['price_per_kg'] > 0]
 
         internal_markets = []
@@ -1401,8 +1268,6 @@ def get_market_comparison(commodity: str, month: str):
             for mkt in df_internal['market'].unique():
                 mkt_data = df_internal[df_internal['market'] == mkt]
                 avg_price = mkt_data['price_per_kg'].mean()
-                
-                # ✅ Only add if price is valid
                 if avg_price > 0:
                     internal_markets.append({
                         "source": "Internal (Kasuwa)",
@@ -1412,19 +1277,15 @@ def get_market_comparison(commodity: str, month: str):
                         "max_price": float(mkt_data['price_per_kg'].max())
                     })
 
-        # 2. Get external sources
         df_external = fetch_other_sources_data()
         df_external['date'] = pd.to_datetime(df_external['date'], errors='coerce')
         df_external['month_name'] = df_external['date'].dt.strftime('%B')
-        
-        # Filter by commodity AND month
+
         df_external = df_external[
             (df_external['commodity'].str.contains(commodity, case=False, na=False)) &
             (df_external['month_name'].str.lower() == month.lower())
         ]
         df_external['price'] = pd.to_numeric(df_external['price'], errors='coerce')
-        
-        # Remove zero/null prices
         df_external = df_external[df_external['price'] > 0]
 
         external_markets = []
@@ -1432,12 +1293,9 @@ def get_market_comparison(commodity: str, month: str):
             for loc in df_external['location'].unique():
                 loc_data = df_external[df_external['location'] == loc]
                 avg_bag = loc_data['price'].mean()
-                
-                # ✅ Only add if price is valid
                 if avg_bag > 0:
                     is_bag = loc_data['unit'].iloc[0] == 'bag'
                     avg_kg = avg_bag / 100 if is_bag else avg_bag
-                    
                     external_markets.append({
                         "source": "External",
                         "market": loc,
@@ -1446,11 +1304,9 @@ def get_market_comparison(commodity: str, month: str):
                         "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max())
                     })
 
-        # 3. Combine and sort by price
         all_markets = internal_markets + external_markets
         all_markets.sort(key=lambda x: x['avg_price_per_kg'])
 
-        # ✅ If no markets found, return helpful message
         if not all_markets:
             return {
                 "commodity": commodity,
@@ -1474,9 +1330,10 @@ def get_market_comparison(commodity: str, month: str):
     except Exception as e:
         import traceback
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Market comparison failed: {str(e)}\n{traceback.format_exc()}"
         )
+
 
 # ============================================================
 # TWO-MARKET COMPARISON ENDPOINT
@@ -1491,22 +1348,6 @@ def compare_two_markets(
     source1: str = "internal",
     source2: str = "internal"
 ):
-    """
-    Compare prices between two specific markets.
-
-    Parameters:
-    - commodity: Commodity name
-    - month: Month name
-    - market1: First market name
-    - market2: Second market name
-    - source1: "internal" or "external" (default: "internal")
-    - source2: "internal" or "external" (default: "internal")
-
-    Examples:
-    - /compare-two-markets?commodity=Cowpea Brown&month=January&market1=Lashe Money&market2=Potiskum
-    - /compare-two-markets?commodity=Soybeans&month=January&market1=Potiskum&market2=Dawanau Market, Kano State&source1=internal&source2=external
-    - /compare-two-markets?commodity=Soybeans&month=January&market1=Dawanau Market, Kano State&market2=Achau Market, Kaduna State&source1=external&source2=external
-    """
     try:
         def get_market_data(commodity, month, market, source):
             if source.lower() == "internal":
@@ -1556,7 +1397,7 @@ def compare_two_markets(
                     "record_count": len(month_df)
                 }
 
-            else:  # external
+            else:
                 df = fetch_other_sources_data()
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 df['month_name'] = df['date'].dt.strftime('%B')
@@ -1624,12 +1465,8 @@ def compare_two_markets(
             price_diff_kg / market1_data['avg_price_per_kg'] * 100
         ) if market1_data['avg_price_per_kg'] > 0 else 0
 
-        if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg']:
-            cheaper_market = market1
-            more_expensive = market2
-        else:
-            cheaper_market = market2
-            more_expensive = market1
+        cheaper_market = market1 if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg'] else market2
+        more_expensive = market2 if cheaper_market == market1 else market1
 
         return {
             "success": True,
