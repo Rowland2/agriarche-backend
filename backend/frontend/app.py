@@ -376,75 +376,80 @@ except Exception as e:
 st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
 
-# A. Chart Fetch (Filtered)
-try:
-    timestamp = int(time.time())
-    response = requests.get(f"{BASE_URL}/analysis", 
-                            params={"commodity": api_commodity_name, "month": month_sel, "market": market_sel, "v": timestamp}, 
-                            headers=HEADERS)
-    
-    if response.status_code == 200:
-        data = response.json()
-        chart_data = data.get("chart_data", [])
+# ✅ Skip chart if "All Commodities" is selected
+if api_commodity_name is None:
+    st.info("📊 Select a specific commodity from the sidebar to view the price trend chart and market intelligence.")
+else:
+    # A. Chart Fetch (Filtered)
+    try:
+        timestamp = int(time.time())
+        response = requests.get(f"{BASE_URL}/analysis", 
+                                params={"commodity": api_commodity_name, "month": month_sel, "market": market_sel, "v": timestamp}, 
+                                headers=HEADERS)
+        
+        if response.status_code == 200:
+            data = response.json()
+            chart_data = data.get("chart_data", [])
 
-        if chart_data:
-            df = pd.DataFrame(chart_data)
-            df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
-            df['start_time'] = pd.to_datetime(df['start_time'])
-            df['day'] = df['start_time'].dt.day
-            df['year'] = df['start_time'].dt.year.astype(str)
-            dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
+            if chart_data:
+                df = pd.DataFrame(chart_data)
+                df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
+                df['start_time'] = pd.to_datetime(df['start_time'])
+                df['day'] = df['start_time'].dt.day
+                df['year'] = df['start_time'].dt.year.astype(str)
+                dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-            fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
-                          text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
-                          color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
-                          labels={"day": "Day of Month", target_col: "Price (₦)"})
-            
-            fig.update_traces(textposition="top center")
-            fig.update_layout(
-                plot_bgcolor="white", 
-                paper_bgcolor="white", 
-                font=dict(color="black", family="Arial Black"),
-                xaxis=dict(
-                    title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
-                    tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee",
-                    dtick=1  # Force whole number intervals (1, 2, 3, not 1.2, 1.4)
-                ),
-                yaxis=dict(
-                    title=dict(text=f"<b>Price (₦)</b>", font=dict(size=16, color="black")),
-                    tickfont=dict(size=14, color="black", family="Arial Black"), 
-                    showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
+                              text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
+                              color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
+                              labels={"day": "Day of Month", target_col: "Price (₦)"})
+                
+                fig.update_traces(textposition="top center")
+                fig.update_layout(
+                    plot_bgcolor="white", 
+                    paper_bgcolor="white", 
+                    font=dict(color="black", family="Arial Black"),
+                    xaxis=dict(
+                        title=dict(text="<b>Day of Month</b>", font=dict(size=16, color="black")),
+                        tickfont=dict(size=14, color="black", family="Arial Black"), 
+                        showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee",
+                        dtick=1
+                    ),
+                    yaxis=dict(
+                        title=dict(text=f"<b>Price (₦)</b>", font=dict(size=16, color="black")),
+                        tickfont=dict(size=14, color="black", family="Arial Black"), 
+                        showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
+                    )
                 )
-            )
-            st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
 
-            avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
-            st.markdown(f"""
-                <div class="metric-container">
-                    <div class="metric-card"><div class="metric-label">Avg price</div><div class="metric-value">₦{avg_val:,.0f}</div></div>
-                    <div class="metric-card"><div class="metric-label">High price</div><div class="metric-value">₦{max_val:,.0f}</div></div>
-                    <div class="metric-card"><div class="metric-label">Low price</div><div class="metric-value">₦{min_val:,.0f}</div></div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            info = COMMODITY_INFO.get(commodity_raw, {"desc": "", "markets": "", "abundance": "", "note": ""})
-            # If not found, try normalized version
-            if not info.get("desc"):
-                normalized = normalize_commodity_for_display(commodity_raw)
-                info = COMMODITY_INFO.get(normalized, {"desc": "Market data profiling in progress...", "markets": "Northern Hubs", "abundance": "Seasonal", "note": "Monitoring price shifts."})
-            
-            st.markdown(f"""
-                <div class="advisor-container" style="border-left: 5px solid {ACCENT_COLOR};">
-                    <p style="color: #1F2937; font-size: 17px; margin: 0; line-height: 1.8;">
-                        <b style="font-size: 18px;">🌾 {display_name} Intelligence:</b><br><br>
-                        {info['desc']}<br><br>
-                        <b>Primary Markets:</b> {info['markets']}<br>
-                        <b>Peak Abundance:</b> {info['abundance']}<br><br>
-                        <i style="color: #666;">💡 Market Note: {info['note']}</i>
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
+                avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
+                st.markdown(f"""
+                    <div class="metric-container">
+                        <div class="metric-card"><div class="metric-label">Avg price</div><div class="metric-value">₦{avg_val:,.0f}</div></div>
+                        <div class="metric-card"><div class="metric-label">High price</div><div class="metric-value">₦{max_val:,.0f}</div></div>
+                        <div class="metric-card"><div class="metric-label">Low price</div><div class="metric-value">₦{min_val:,.0f}</div></div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                info = COMMODITY_INFO.get(commodity_raw, {"desc": "", "markets": "", "abundance": "", "note": ""})
+                if not info.get("desc"):
+                    normalized = normalize_commodity_for_display(commodity_raw)
+                    info = COMMODITY_INFO.get(normalized, {"desc": "Market data profiling in progress...", "markets": "Northern Hubs", "abundance": "Seasonal", "note": "Monitoring price shifts."})
+                
+                st.markdown(f"""
+                    <div class="advisor-container" style="border-left: 5px solid {ACCENT_COLOR};">
+                        <p style="color: #1F2937; font-size: 17px; margin: 0; line-height: 1.8;">
+                            <b style="font-size: 18px;">🌾 {display_name} Intelligence:</b><br><br>
+                            {info['desc']}<br><br>
+                            <b>Primary Markets:</b> {info['markets']}<br>
+                            <b>Peak Abundance:</b> {info['abundance']}<br><br>
+                            <i style="color: #666;">💡 Market Note: {info['note']}</i>
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Chart error: {str(e)}")
             
             # =====================================================
             # STRATEGIC SOURCING - MOVED HERE (after Commodity Intelligence)
