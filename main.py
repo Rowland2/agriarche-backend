@@ -1277,6 +1277,10 @@ def compare_two_markets(
         cheaper_market = market1 if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg'] else market2
         more_expensive = market2 if cheaper_market == market1 else market1
 
+        # Resolve which data belongs to cheaper and more expensive market
+        cheaper_data = market1_data if cheaper_market == market1 else market2_data
+        expensive_data = market1_data if more_expensive == market1 else market2_data
+
         return {
             "success": True,
             "commodity": commodity,
@@ -1286,8 +1290,18 @@ def compare_two_markets(
             "comparison": {
                 "cheaper_market": cheaper_market,
                 "more_expensive_market": more_expensive,
-                "buy_from": cheaper_market,        # ✅ ADDED
-                "avoid": more_expensive,           # ✅ ADDED
+                "buy_from": {                                       # ✅ UPDATED
+                    "market": cheaper_market,
+                    "avg_price_per_kg": cheaper_data['avg_price_per_kg'],
+                    "avg_price_per_bag": cheaper_data['avg_price_per_bag'],
+                    "label": "✅ Lowest Price — Buy Here"
+                },
+                "avoid": {                                          # ✅ UPDATED
+                    "market": more_expensive,
+                    "avg_price_per_kg": expensive_data['avg_price_per_kg'],
+                    "avg_price_per_bag": expensive_data['avg_price_per_bag'],
+                    "label": "🚨 Highest Price — Avoid or Negotiate"
+                },
                 "price_difference_per_kg": round(abs(price_diff_kg), 2),
                 "price_difference_per_bag": round(abs(price_diff_bag), 2),
                 "percentage_difference": round(abs(percentage_diff), 2),
@@ -1302,7 +1316,6 @@ def compare_two_markets(
             status_code=500,
             detail=f"Comparison failed: {str(e)}\n{traceback.format_exc()}"
         )
-
 
 # ============================================================
 # GAP ANALYSIS ENDPOINT
