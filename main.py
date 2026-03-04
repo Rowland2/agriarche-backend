@@ -1171,8 +1171,10 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
+                # ✅ FIX: Strip state suffix before matching e.g. "Giwa Market, Kaduna State" → "Giwa Market"
+                market_key = market.split(',')[0].strip().lower()
                 market_commodity_df = commodity_df[
-                    commodity_df['market'].str.lower() == market.lower()
+                    commodity_df['market'].str.lower().str.contains(market_key, na=False)
                 ]
                 if market_commodity_df.empty:
                     return {
@@ -1218,8 +1220,10 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
+                # ✅ FIX: Strip state suffix before matching for external source too
+                market_key = market.split(',')[0].strip().lower()
                 market_commodity_df = commodity_df[
-                    commodity_df['location'].str.contains(market, case=False, na=False)
+                    commodity_df['location'].str.lower().str.contains(market_key, na=False)
                 ]
                 if market_commodity_df.empty:
                     return {
