@@ -1146,7 +1146,6 @@ def get_market_comparison(commodity: str, month: str):
 # ============================================================
 # TWO-MARKET COMPARISON ENDPOINT
 # ============================================================
-
 @app.get("/compare-two-markets")
 def compare_two_markets(
     commodity: str,
@@ -1171,7 +1170,6 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
-                # ✅ FIX: Strip state suffix before matching e.g. "Giwa Market, Kaduna State" → "Giwa Market"
                 market_key = market.split(',')[0].strip().lower()
                 market_commodity_df = commodity_df[
                     commodity_df['market'].str.lower().str.contains(market_key, na=False)
@@ -1220,7 +1218,6 @@ def compare_two_markets(
                         "available_commodities": sorted(df['commodity'].unique().tolist())
                     }
 
-                # ✅ FIX: Strip state suffix before matching for external source too
                 market_key = market.split(',')[0].strip().lower()
                 market_commodity_df = commodity_df[
                     commodity_df['location'].str.lower().str.contains(market_key, na=False)
@@ -1289,6 +1286,8 @@ def compare_two_markets(
             "comparison": {
                 "cheaper_market": cheaper_market,
                 "more_expensive_market": more_expensive,
+                "buy_from": cheaper_market,        # ✅ ADDED
+                "avoid": more_expensive,           # ✅ ADDED
                 "price_difference_per_kg": round(abs(price_diff_kg), 2),
                 "price_difference_per_bag": round(abs(price_diff_bag), 2),
                 "percentage_difference": round(abs(percentage_diff), 2),

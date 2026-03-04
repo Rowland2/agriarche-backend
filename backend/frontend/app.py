@@ -287,7 +287,6 @@ def fetch_filter_options():
         if response.status_code == 200:
             return response.json()
         else:
-            # Fallback to hardcoded if API fails
             return {
                 "commodities": HARDCODED_COMMODITIES,
                 "markets": HARDCODED_MARKETS,
@@ -297,7 +296,6 @@ def fetch_filter_options():
                           "July", "August", "September", "October", "November", "December"]
             }
     except Exception as e:
-        # Fallback to hardcoded if network error
         print(f"Failed to fetch filters from backend: {e}")
         return {
             "commodities": HARDCODED_COMMODITIES,
@@ -318,31 +316,32 @@ commodities_raw = filter_options['commodities']
 commodities_cleaned = {}
 for c in commodities_raw:
     normalized = normalize_commodity_for_display(c)
-    # Use lowercase as key to catch duplicates with different capitalization
     key = normalized.lower()
-    # Keep the first properly formatted version we see
     if key not in commodities_cleaned:
         commodities_cleaned[key] = normalized
 
 commodities_display = sorted(list(commodities_cleaned.values()))
 
-# Sidebar dropdowns (now using backend data!)
+# ✅ ADD "All Commodities" as the first option
+commodities_display = ["All Commodities"] + commodities_display
+
+# Sidebar dropdowns
 commodity_raw = st.sidebar.selectbox("Select Commodity", commodities_display)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + filter_options['markets'])
 month_sel = st.sidebar.selectbox("Select Month", filter_options['months'])
 
-# Year filter - use backend data with fallback
+# Year filter
 years_list = filter_options.get('years', ["2024", "2025", "2026"])
 default_year = years_list[0] if years_list else "2026"
 selected_years = st.sidebar.multiselect("Year", years_list, default=[default_year], key="main_years")
 
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
-display_name = format_commodity_name(commodity_raw)
+display_name = format_commodity_name(commodity_raw) if commodity_raw != "All Commodities" else "All Commodities"
 target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# Convert display name back to API format for querying
-api_commodity_name = convert_display_to_api_format(commodity_raw)
+# ✅ If "All Commodities" selected, send None to API (returns everything)
+api_commodity_name = None if commodity_raw == "All Commodities" else convert_display_to_api_format(commodity_raw)
 
 # =====================================================
 # 6. MAIN CONTENT (CHART & KPIs)
