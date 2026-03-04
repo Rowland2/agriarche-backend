@@ -445,27 +445,26 @@ else:
                             <b>Primary Markets:</b> {info['markets']}<br>
                             <b>Peak Abundance:</b> {info['abundance']}<br><br>
                             <i style="color: #666;">💡 Market Note: {info['note']}</i>
-                        </p>
+    </p>
                     </div>
                 """, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"Chart error: {str(e)}")
-            
-            # =====================================================
-            # STRATEGIC SOURCING - MOVED HERE (after Commodity Intelligence)
-            # =====================================================
-            # Get full month data for strategic sourcing
-            try:
-                all_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
-                if all_response.status_code == 200:
-                    response_data = all_response.json()
-                    
-                    # Handle paginated response
-                    if isinstance(response_data, dict) and 'data' in response_data:
-                        all_data = pd.DataFrame(response_data['data'])
-                    else:
-                        all_data = pd.DataFrame(response_data)
-                    
+
+# =====================================================
+# STRATEGIC SOURCING - MOVED HERE (after Commodity Intelligence)
+# =====================================================
+# Get full month data for strategic sourcing
+try:
+    all_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
+    if all_response.status_code == 200:
+        response_data = all_response.json()
+        
+        # Handle paginated response
+        if isinstance(response_data, dict) and 'data' in response_data:
+            all_data = pd.DataFrame(response_data['data'])
+        else:
+            all_data = pd.DataFrame(response_data)
                     all_data['start_time'] = pd.to_datetime(all_data['start_time'])
                     all_data['month_name'] = all_data['start_time'].dt.strftime('%B')
                     all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
