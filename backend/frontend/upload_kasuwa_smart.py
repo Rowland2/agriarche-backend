@@ -175,16 +175,7 @@ def upload_kasuwa_data(csv_file_path):
             for _, row in changes.iterrows():
                 print(f"   '{row['commodity_original']}' → '{row['commodity']}'")
         
-        # Put data back to original column names for validation
-        for old_col, new_col in column_mapping.items():
-            df[new_col] = df_clean[new_col]
-        
-        # ✅ VALIDATE DATA QUALITY
-        print("\n🔍 Validating data quality...")
-        if not validate_data_quality(df):
-            return
-        
-        # ✅ CHECK FOR EXISTING RECORDS (BEFORE VALIDATION)
+        # ✅ CHECK FOR EXISTING RECORDS (DO THIS FIRST)
         print("\n🔍 Checking for existing records in database...")
         try:
             existing_response = requests.get(
@@ -238,7 +229,7 @@ def upload_kasuwa_data(csv_file_path):
             print(f"⚠️  Could not check for duplicates: {str(e)}")
             print("   Proceeding with upload anyway...")
         
-        # ✅ VALIDATE DATA QUALITY (AFTER DUPLICATE CHECK)
+        # ✅ VALIDATE DATA QUALITY (AFTER DUPLICATE CHECK - only validates NEW records)
         print("\n🔍 Validating data quality...")
         if not validate_data_quality(df_clean):
             return
