@@ -94,7 +94,7 @@ def standardize_commodity_name(commodity):
 
 
 def validate_data_quality(df):
-    """Validate data before uploading"""
+    """Validate data before uploading - uses lowercase column names from df_clean"""
     issues = []
     
     # Check for suspicious prices
@@ -102,7 +102,7 @@ def validate_data_quality(df):
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
         
         pambegua_low = df[
-            (df['Market'] == 'Pambegua') & 
+            (df['market'] == 'Pambegua') &  # ← FIXED: lowercase 'market'
             (df['price_per_kg_numeric'] < 500) &
             (df['price_per_kg_numeric'] > 0)
         ]
@@ -111,8 +111,8 @@ def validate_data_quality(df):
             issues.append(f"⚠️  Found {len(pambegua_low)} Pambegua records with price < ₦500")
     
     # Check for ALL CAPS
-    if 'Commodity' in df.columns:
-        all_caps = df[df['Commodity'].str.isupper() & (df['Commodity'].str.len() > 2)]
+    if 'commodity' in df.columns:  # ← FIXED: lowercase 'commodity'
+        all_caps = df[df['commodity'].str.isupper() & (df['commodity'].str.len() > 2)]
         if len(all_caps) > 0:
             issues.append(f"⚠️  Found {len(all_caps)} ALL CAPS commodities (will be auto-fixed)")
     
