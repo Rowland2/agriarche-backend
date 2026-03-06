@@ -42,27 +42,27 @@ def standardize_commodity_name(commodity):
     commodity = commodity.strip()
     
     STANDARD_NAMES = {
-        'soybeans': 'SOYBEANS',
-        'soya beans': 'SOYBEANS',
-        'white beans (zapa)': 'WHITE BEANS (ZAPA)',
-        'white beans': 'WHITE BEANS (ZAPA)',
-        'paddy rice': 'PADDY RICE',
-        'rice paddy': 'PADDY RICE',
-        'maize (corn) white new harvest': 'MAIZE (CORN) WHITE NEW HARVEST',
-        'maize white': 'MAIZE (CORN) WHITE NEW HARVEST',
-        'millet (dauro)': 'MILLET (DAURO)',
-        'millet (gero)': 'MILLET (GERO)',
-        'millet': 'MILLET (DAURO)',
-        'guinea corn (dawa)': 'GUINEA CORN (DAWA)',
-        'chili pepper': 'CHILI PEPPER',
+        'soybeans': 'Soybeans',
+        'soya beans': 'Soybeans',
+        'white beans (zapa)': 'White Beans (Zapa)',
+        'white beans': 'White Beans (Zapa)',
+        'paddy rice': 'Paddy Rice',
+        'rice paddy': 'Paddy Rice',
+        'maize (corn) white new harvest': 'Maize (Corn) White New Harvest',
+        'maize white': 'Maize (Corn) White New Harvest',
+        'millet (dauro)': 'Millet (Dauro)',
+        'millet (gero)': 'Millet (Gero)',
+        'millet': 'Millet (Dauro)',
+        'guinea corn (dawa)': 'Guinea Corn (Dawa)',
+        'chili pepper': 'Chili Pepper',
     }
     
     commodity_lower = commodity.lower()
     if commodity_lower in STANDARD_NAMES:
         return STANDARD_NAMES[commodity_lower]
     
-    # Return in UPPERCASE as per your database format
-    return commodity.upper()
+    # Return in Title Case (Proper Case) as per database standard
+    return commodity.title()  # ← Changed from .upper() to .title()
 
 
 def validate_data_quality(df):
@@ -70,7 +70,7 @@ def validate_data_quality(df):
     issues = []
     
     # Check for required fields
-    required_fields = ['date', 'commodity', 'location', 'unit', 'price_clean']
+    required_fields = ['date', 'commodity', 'location', 'unit',]
     for field in required_fields:
         if field not in df.columns:
             issues.append(f"❌ Missing required field: {field}")
@@ -79,9 +79,10 @@ def validate_data_quality(df):
             if missing_count > 0:
                 issues.append(f"⚠️  Found {missing_count} records with missing {field}")
     
-    # Check for invalid prices
-    if 'price_clean' in df.columns:
-        df['price_numeric'] = pd.to_numeric(df['price_clean'], errors='coerce')
+    # Check for invalid prices (works for both 'price' and 'price_clean')
+    price_col = 'price' if 'price' in df.columns else 'price_clean'
+    if price_col in df.columns:
+        df['price_numeric'] = pd.to_numeric(df[price_col], errors='coerce')
         
         invalid_prices = df[(df['price_numeric'] <= 0) | (df['price_numeric'].isna())]
         if len(invalid_prices) > 0:
