@@ -184,7 +184,7 @@ def upload_kasuwa_data(csv_file_path):
         if not validate_data_quality(df):
             return
         
-        # ✅ CHECK FOR EXISTING RECORDS
+        # ✅ CHECK FOR EXISTING RECORDS (BEFORE VALIDATION)
         print("\n🔍 Checking for existing records in database...")
         try:
             existing_response = requests.get(
@@ -228,9 +228,20 @@ def upload_kasuwa_data(csv_file_path):
                     if after_count == 0:
                         print("\n✅ All records already exist in database - nothing to upload!")
                         return
+                else:
+                    print("✅ Database is empty - uploading all records")
+            else:
+                print(f"⚠️  Could not check for duplicates (API status: {existing_response.status_code})")
+                print("   Proceeding with upload anyway...")
+                
         except Exception as e:
             print(f"⚠️  Could not check for duplicates: {str(e)}")
             print("   Proceeding with upload anyway...")
+        
+        # ✅ VALIDATE DATA QUALITY (AFTER DUPLICATE CHECK)
+        print("\n🔍 Validating data quality...")
+        if not validate_data_quality(df_clean):
+            return
         
         # Upload each record
         print(f"\n📤 Uploading {len(df_clean)} records to backend...")
