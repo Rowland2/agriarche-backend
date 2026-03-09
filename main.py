@@ -569,20 +569,27 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         best_price = market_avg.min()
         worst_price = market_avg.max()
 
+        # ✅ IMPROVED TREND DETECTION
         trend = "stable"
         trend_percent = 0
 
-        if len(df_commodity) >= 14:
+        # FIXED: Lower requirement from 14 to 4 records
+        if len(df_commodity) >= 4:
             try:
                 sorted_data = df_commodity.sort_values('start_time')
-                recent_avg = sorted_data.tail(7)['price_per_kg'].mean()
-                previous_avg = sorted_data.iloc[-14:-7]['price_per_kg'].mean()
-
-                if pd.notna(recent_avg) and pd.notna(previous_avg) and previous_avg > 0:
-                    diff = recent_avg - previous_avg
-                    if abs(diff) > previous_avg * 0.02:
-                        trend = "rising" if diff > 0 else "falling"
-                        trend_percent = abs((diff / previous_avg) * 100)
+                
+                # Use half the data for comparison (more flexible)
+                half_point = len(sorted_data) // 2
+                if half_point >= 2:
+                    recent_avg = sorted_data.tail(half_point)['price_per_kg'].mean()
+                    previous_avg = sorted_data.head(half_point)['price_per_kg'].mean()
+                    
+                    if pd.notna(recent_avg) and pd.notna(previous_avg) and previous_avg > 0:
+                        diff = recent_avg - previous_avg
+                        # More sensitive: 1% threshold instead of 2%
+                        if abs(diff) > previous_avg * 0.01:
+                            trend = "rising" if diff > 0 else "falling"
+                            trend_percent = abs((diff / previous_avg) * 100)
             except:
                 trend = "stable"
                 trend_percent = 0
@@ -652,7 +659,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             "recommendations": [],
             "error": str(e)
         }
-
 
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets", exact: bool = False):
