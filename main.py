@@ -28,7 +28,10 @@ origins_prod = [
     "https://app.kasuwa.com/dashboard/sourcing-insights",
     "https://devext.kasuwa.com/dashboard/sourcing-insights",
     "https://devext.kasuwa.com",
+    "https://kasuwa.com",
+    "https://kasuwa.com/market-pricing",
 ]
+
 
 allowed_origins = origins_dev + origins_prod
 
