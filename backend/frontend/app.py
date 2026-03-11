@@ -328,13 +328,15 @@ commodities_display = ["All Commodities"] + commodities_display
 # Sidebar dropdowns
 commodity_raw = st.sidebar.selectbox("Select Commodity", commodities_display)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + filter_options['markets'])
-month_sel = st.sidebar.selectbox("Select Month", filter_options['months'])
+
+current_month = datetime.now().strftime("%B")
+months_list = filter_options['months']
+default_month_index = months_list.index(current_month) if current_month in months_list else 0
+month_sel = st.sidebar.selectbox("Select Month", months_list, index=default_month_index)
 
 # Year filter
-years_list = filter_options.get('years', ["2024", "2025", "2026"])
-default_year = years_list[0] if years_list else "2026"
-selected_years = st.sidebar.multiselect("Year", years_list, default=[default_year], key="main_years")
-
+years_list = filter_options.get('years', [ "2025", "2026"])
+selected_years = st.sidebar.multiselect("Year", years_list, default=["2026"], key="main_years")
 price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
 
 display_name = format_commodity_name(commodity_raw) if commodity_raw != "All Commodities" else "All Commodities"
