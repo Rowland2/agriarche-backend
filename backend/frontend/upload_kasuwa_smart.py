@@ -49,9 +49,16 @@ def standardize_commodity_name(commodity):
         'soy beans': 'Soybeans',
         'soybeans': 'Soybeans',
         
-        # Groundnut
+        # Groundnut Gargaja (all typos)
         'groundnut gargaja': 'Groundnut Gargaja',
-        'groundnut kampala': 'Groundnut Kampala',
+        'groundnut garjaga': 'Groundnut Gargaja',  # Wrong spelling
+        'groundnut gajaga': 'Groundnut Gargaja',   # Another typo
+        'groundut gargaja': 'Groundnut Gargaja',   # Missing 'n'
+        
+        # Groundnut Kampala (all typos)
+        'groundnut kampala': 'Groundnut Kampala',  # Lowercase k
+        'groundut kampala': 'Groundnut Kampala',   # Missing 'n'
+        'groundnut Kampala': 'Groundnut Kampala',  # Mixed case
         
         # White Beans
         'white beans': 'White Beans (Zapa)',
@@ -102,7 +109,7 @@ def validate_data_quality(df):
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
         
         pambegua_low = df[
-            (df['market'] == 'Pambegua') &  # ← FIXED: lowercase 'market'
+            (df['market'] == 'Pambegua') &
             (df['price_per_kg_numeric'] < 500) &
             (df['price_per_kg_numeric'] > 0)
         ]
@@ -111,7 +118,7 @@ def validate_data_quality(df):
             issues.append(f"⚠️  Found {len(pambegua_low)} Pambegua records with price < ₦500")
     
     # Check for ALL CAPS
-    if 'commodity' in df.columns:  # ← FIXED: lowercase 'commodity'
+    if 'commodity' in df.columns:
         all_caps = df[df['commodity'].str.isupper() & (df['commodity'].str.len() > 2)]
         if len(all_caps) > 0:
             issues.append(f"⚠️  Found {len(all_caps)} ALL CAPS commodities (will be auto-fixed)")
@@ -191,10 +198,12 @@ def upload_kasuwa_data(csv_file_path):
                 
                 if existing_data:
                     existing_df = pd.DataFrame(existing_data)
-                    existing_df['start_time'] = pd.to_datetime(existing_df['start_time']).astype(str)
+                    # FIXED: Use format='ISO8601' for database dates (2026-03-21)
+                    existing_df['start_time'] = pd.to_datetime(existing_df['start_time'], format='ISO8601', errors='coerce').astype(str)
                     
+                    # FIXED: Use format='mixed' for CSV dates (handles multiple formats)
                     df_clean['compare_key'] = (
-                        pd.to_datetime(df_clean['start_time']).astype(str) + "_" + 
+                        pd.to_datetime(df_clean['start_time'], format='mixed', dayfirst=False, errors='coerce').astype(str) + "_" + 
                         df_clean['commodity'].astype(str) + "_" + 
                         df_clean['market'].astype(str)
                     )
