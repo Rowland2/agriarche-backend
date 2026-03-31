@@ -30,7 +30,10 @@ origins_prod = [
     "https://devext.kasuwa.com",
     "https://kasuwa.com",
     "https://kasuwa.com/market-pricing",
+    "https://localhost:5174/system/sourcing-insights",
+    "https://prod.kasuwa.com/system/sourcing-insights",
 ]
+
 
 
 allowed_origins = origins_dev + origins_prod
