@@ -20,6 +20,7 @@ origins_dev = [
     "http://localhost:4200",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
 ]
 
 origins_prod = [
@@ -30,7 +31,6 @@ origins_prod = [
     "https://devext.kasuwa.com",
     "https://kasuwa.com",
     "https://kasuwa.com/market-pricing",
-    "https://localhost:5174/system/sourcing-insights",
     "https://prod.kasuwa.com/system/sourcing-insights",
 ]
 
