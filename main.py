@@ -32,6 +32,7 @@ origins_prod = [
     "https://kasuwa.com",
     "https://kasuwa.com/market-pricing",
     "https://prod.kasuwa.com/system/sourcing-insights",
+    "https://prod.kasuwa.com",
 ]
 
 
