@@ -28,7 +28,7 @@ COMMODITY_INFO = {
     "White Cowpea": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
     "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
     "White Maize": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
-    "Rice Paddy": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
+    "Paddy Rice": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
     "Processed Rice": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
     "Red Sorghum": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
     "White Sorghum": {"desc": "Drought-resistant white grain variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Premium variety for food processing."},
@@ -64,7 +64,7 @@ def normalize_commodity_for_display(name):
     elif "honey" in name_lower:
         return "Honey Beans"
     elif "rice" in name_lower and "paddy" in name_lower:
-        return "Rice Paddy"
+        return "Paddy Rice"
     elif "rice" in name_lower and "process" in name_lower:
         return "Processed Rice"
     elif "millet" in name_lower:
@@ -89,10 +89,10 @@ def convert_display_to_api_format(display_name):
         "White Sorghum": "Sorghum White",
         "Yellow Sorghum": "Sorghum Yellow",
         "Sorghum": "Sorghum",
-       "Soybeans": "Soybeans",
+        "Soybeans": "Soybeans",
         "Honey beans": "Honey Beans",
-        "Rice Paddy": "Rice Paddy",
-        "Processed Rice": "Rice processed",
+        "Paddy Rice": "Paddy Rice",
+        "Processed Rice": "Processed Rice",
         "Millet": "Millet",
         "Groundnut gargaja": "Groundnut Gargaja",
         "Groundnut kampala": "Groundnut kampala"
@@ -212,6 +212,7 @@ def generate_pdf_report(month_name, report_df):
     def add_watermark(canvas, doc):
         canvas.saveState()
         # Add logo watermark if exists
+        import os
         if os.path.exists(LOGO_PATH):
             canvas.setFillAlpha(0.1)
             canvas.drawImage(LOGO_PATH, letter[0]/2 - 1.5*inch, letter[1]/2 - 1.5*inch, 
@@ -669,7 +670,7 @@ try:
             st.markdown("<br>", unsafe_allow_html=True)
 
             # STRATEGIC SOURCING CARDS (responds to Price per Kg/Bag toggle)
-            strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy()
+            strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy() if api_commodity_name else pd.DataFrame()
             
             if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
                 # Use the same target_col as selected in sidebar (price_per_kg or price_per_bag)
@@ -683,11 +684,7 @@ try:
                 # Display unit based on selection
                 unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
 
-                # AI MARKET ADVISOR (without repeating Strategic Sourcing cards)
-                # AI MARKET ADVISOR - REPLACE THIS ENTIRE SECTION
-# ========================================   
                 # AI MARKET ADVISOR
-                # =====================================================
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader("🤖 AI Market Advisor")
 
@@ -729,10 +726,6 @@ try:
                 except Exception as e:
                     st.error(f"Could not fetch AI market advice: {str(e)}")
 
-                # =====================================================
-                # DETAILED GAP ANALYSIS TABLE (WITH PAGINATION)
-                # =====================================================
-                
                 # =====================================================
                 # DETAILED GAP ANALYSIS TABLE (WITH PAGINATION)
                 # =====================================================
@@ -796,12 +789,12 @@ try:
                             
                             with col_prev:
                                 if pagination.get('has_previous', False):
-                                    if st.button(" Previous Page", key="gap_prev"):
+                                    if st.button("⬅ Previous Page", key="gap_prev"):
                                         st.rerun()
                             
                             with col_next:
                                 if pagination.get('has_next', False):
-                                    if st.button("Next Page ", key="gap_next"):
+                                    if st.button("Next Page ➡", key="gap_next"):
                                         st.rerun()
                         else:
                             st.info(f"No gap analysis data available for {month_sel}")
@@ -988,7 +981,8 @@ try:
                 except Exception as comp_err:
                     st.warning(f"Market comparison unavailable: {str(comp_err)}")
             else:
-                st.info(f"Insufficient market data for strategic sourcing analysis of {display_name} in {month_sel}.")
+                if api_commodity_name:
+                    st.info(f"Insufficient market data for strategic sourcing analysis of {display_name} in {month_sel}.")
         else:
             st.info(f"No data available for {month_sel}.")
 except Exception as e:
@@ -1312,6 +1306,7 @@ try:
         
 except Exception as e:
     st.error(f"Other Sources Error: {e}")
+
 # =====================================================
 # 11. FOOTER
 # =====================================================
@@ -1319,6 +1314,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p><strong>Agriarche Intelligence Hub</strong> — Agricultural Market Intelligence Platform</p>
-        <p style='font-size: 0.9em;'> • Real-time commodity pricing data</p>
+        <p style='font-size: 0.9em;'>📊 • Real-time commodity pricing data</p>
     </div>
 """, unsafe_allow_html=True)
