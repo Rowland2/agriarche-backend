@@ -20,7 +20,7 @@ from reportlab.platypus import Flowable
 PRIMARY_COLOR = "#1F7A3F" 
 ACCENT_COLOR = "#F4B266"  
 BG_COLOR = "#F5F7FA"
-LOGO_PATH = "assets/logo.png"  # Optional: add your logo
+LOGO_PATH = "assets/logo.png"
 
 COMMODITY_INFO = {
     "Soybeans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
@@ -39,12 +39,10 @@ COMMODITY_INFO = {
     "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
 }
 
-# Function to normalize commodity names (color first)
 def normalize_commodity_for_display(name):
     """Normalize to match COMMODITY_INFO keys with color first"""
     name_lower = name.lower().strip()
     
-    # Map common variations to standardized names
     if "cowpea" in name_lower and "brown" in name_lower:
         return "Brown Cowpea"
     elif "cowpea" in name_lower and "white" in name_lower:
@@ -77,10 +75,9 @@ def normalize_commodity_for_display(name):
     return name
 
 def convert_display_to_api_format(display_name):
-    """Convert display name (Color First) back to API format (Color Last) for querying"""
+    """Convert display name back to API format for querying"""
     name = display_name.strip()
     
-    # Map display names to API format
     mappings = {
         "Brown Cowpea": "Cowpea Brown",
         "White Cowpea": "Cowpea White",
@@ -108,9 +105,7 @@ def format_commodity_name(name):
     parts = name.split()
     colors_list = ["white", "brown", "red", "yellow", "black"]
     
-    # Check if last word is a color
     if len(parts) > 1 and parts[-1].lower() in colors_list:
-        # Move color to the front: "Cowpea White" -> "White Cowpea"
         color = parts[-1].capitalize()
         commodity = ' '.join(parts[:-1])
         return f"{color} {commodity}"
@@ -130,7 +125,6 @@ st.markdown(f"""
         section[data-testid="stSidebar"] div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; color: #000000 !important; }}
         h1, h2, h3 {{ color: {PRIMARY_COLOR} !important; }}
         
-        /* KPI Card Styling */
         .metric-container {{
             display: flex;
             justify-content: space-between;
@@ -148,7 +142,6 @@ st.markdown(f"""
         .metric-label {{ font-size: 14px; color: #555; font-weight: bold; }}
         .metric-value {{ font-size: 28px; color: {PRIMARY_COLOR}; font-weight: 800; }}
         
-        /* Strategy Cards */
         .strategy-card {{
             padding: 20px;
             border-radius: 10px;
@@ -159,7 +152,6 @@ st.markdown(f"""
         .best-buy {{ background-color: #2E7D32; border-bottom: 5px solid #1B5E20; }}
         .worst-buy {{ background-color: #C62828; border-bottom: 5px solid #8E0000; }}
         
-        /* Advisor Container */
         .advisor-container {{
             background-color: #FFFFFF;
             padding: 20px;
@@ -190,7 +182,6 @@ def generate_pdf_report(month_name, report_df):
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
     
-    # Custom Styles
     title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], 
                                  textColor=colors.HexColor(PRIMARY_COLOR), spaceAfter=12)
     market_header_style = ParagraphStyle('MarketHeader', parent=styles['Heading2'], 
@@ -202,16 +193,13 @@ def generate_pdf_report(month_name, report_df):
     
     elements = []
     
-    # --- REPORT HEADER ---
     elements.append(Paragraph(f"Agriarche Market Intelligence Report", title_style))
     elements.append(Paragraph(f"Analysis Month: {month_name}", styles['Heading3']))
     elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}", body_style))
     elements.append(Spacer(1, 20))
 
-    # --- WATERMARK LOGIC WITH LOGO ---
     def add_watermark(canvas, doc):
         canvas.saveState()
-        # Add logo watermark if exists
         import os
         if os.path.exists(LOGO_PATH):
             canvas.setFillAlpha(0.1)
@@ -219,8 +207,6 @@ def generate_pdf_report(month_name, report_df):
                            width=3*inch, preserveAspectRatio=True, mask='auto')
         canvas.restoreState()
 
-    # --- CONTENT GENERATION (GROUPED BY MARKET) ---
-    # Use "N" instead of ₦ symbol for PDF compatibility
     summary_table_data = [["Market", "Commodity", "Avg Price/Kg (N)", "High/Kg (N)", "Low/Kg (N)"]]
     unique_markets = sorted(report_df["market"].unique())
 
@@ -237,7 +223,6 @@ def generate_pdf_report(month_name, report_df):
             low_p = comm_df["price_per_kg"].min()
             
             elements.append(Paragraph(f"<b>{comm}</b>", sub_style))
-            # Use "N" instead of ₦ for PDF compatibility
             text = (f"In {market}, the average price for {comm} was <b>N{avg_p:,.2f}/Kg</b>. "
                     f"Prices peaked at N{high_p:,.2f}/Kg with a floor of N{low_p:,.2f}/Kg.")
             elements.append(Paragraph(text, body_style))
@@ -246,7 +231,6 @@ def generate_pdf_report(month_name, report_df):
         
         elements.append(Spacer(1, 10))
 
-    # --- PRICE SUMMARY TABLE ---
     elements.append(Spacer(1, 15))
     elements.append(Paragraph("Comprehensive Market Summary Table", market_header_style))
     elements.append(Spacer(1, 10))
@@ -279,8 +263,7 @@ HEADERS = {"access_token": "Agriarche_Internal_Key_2026"}
 
 st.sidebar.title("Internal Market Price Filters")
 
-# Fetch filter options from backend (cached for performance)
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+@st.cache_data(ttl=3600)
 def fetch_filter_options():
     """Fetch all filter options from backend"""
     try:
@@ -307,13 +290,10 @@ def fetch_filter_options():
                       "July", "August", "September", "October", "November", "December"]
         }
 
-# Get filter options from backend
 filter_options = fetch_filter_options()
 
-# Normalize commodity names for display (Color First)
 commodities_raw = filter_options['commodities']
 
-# Clean and deduplicate commodities (case-insensitive)
 commodities_cleaned = {}
 for c in commodities_raw:
     normalized = normalize_commodity_for_display(c)
@@ -322,11 +302,8 @@ for c in commodities_raw:
         commodities_cleaned[key] = normalized
 
 commodities_display = sorted(list(commodities_cleaned.values()))
-
-# ✅ ADD "All Commodities" as the first option
 commodities_display = ["All Commodities"] + commodities_display
 
-# Sidebar dropdowns
 commodity_raw = st.sidebar.selectbox("Select Commodity", commodities_display)
 market_sel = st.sidebar.selectbox("Select Market", ["All Markets"] + filter_options['markets'])
 
@@ -335,21 +312,41 @@ months_list = filter_options['months']
 default_month_index = months_list.index(current_month) if current_month in months_list else 0
 month_sel = st.sidebar.selectbox("Select Month", months_list, index=default_month_index)
 
-# Year filter
-years_list = filter_options.get('years', [ "2025", "2026"])
+years_list = filter_options.get('years', ["2025", "2026"])
 selected_years = st.sidebar.multiselect("Year", years_list, default=["2026"], key="main_years")
-price_choice = st.sidebar.radio("Display Price By:", ["Price per Kg", "Price per Bag"])
+
+# =====================================================
+# PRICE DISPLAY TOGGLE - NOW WITH METRIC TON
+# =====================================================
+price_choice = st.sidebar.radio(
+    "Display Price By:",
+    ["Price per Kg", "Price per Bag", "Price per Metric Ton"]
+)
+
+# Determine the base column and any multiplier needed
+if price_choice == "Price per Bag":
+    target_col = "price_per_bag"
+    price_label = "Price per Bag (₦)"
+    price_multiplier = 1
+    unit_label = "Avg/Bag"
+elif price_choice == "Price per Metric Ton":
+    target_col = "price_per_kg"   # We always pull kg from the API
+    price_label = "Price per Metric Ton (₦)"
+    price_multiplier = 1000       # 1 metric ton = 1,000 kg
+    unit_label = "Avg/MT"
+else:
+    target_col = "price_per_kg"
+    price_label = "Price per Kg (₦)"
+    price_multiplier = 1
+    unit_label = "Avg/Kg"
 
 display_name = format_commodity_name(commodity_raw) if commodity_raw != "All Commodities" else "All Commodities"
-target_col = "price_per_kg" if price_choice == "Price per Kg" else "price_per_bag"
 
-# ✅ If "All Commodities" selected, send None to API (returns everything)
 api_commodity_name = None if commodity_raw == "All Commodities" else convert_display_to_api_format(commodity_raw)
 
 # =====================================================
 # 6. MAIN CONTENT (CHART & KPIs)
 # =====================================================
-# Display logo at top
 try:
     import os
     if os.path.exists(LOGO_PATH):
@@ -376,7 +373,6 @@ except Exception as e:
 st.title("Commodity Pricing Intelligence Dashboard")
 st.subheader(f"Market Price Trend: {display_name} in {month_sel}")
 
-# ✅ Skip chart if "All Commodities" is selected
 if api_commodity_name is None:
     st.info("📊 Select a specific commodity from the sidebar to view the price trend chart and market intelligence.")
 else:
@@ -392,16 +388,22 @@ else:
 
             if chart_data:
                 df = pd.DataFrame(chart_data)
-                df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
+                # Always pull price_per_kg from API; apply multiplier for metric ton display
+                df["price_per_kg"] = pd.to_numeric(df["price_per_kg"], errors='coerce')
+                df["price_per_bag"] = pd.to_numeric(df["price_per_bag"], errors='coerce')
                 df['start_time'] = pd.to_datetime(df['start_time'])
                 df['day'] = df['start_time'].dt.day
                 df['year'] = df['start_time'].dt.year.astype(str)
-                dfc_grouped = df.groupby(['day', 'year'])[target_col].mean().reset_index()
 
-                fig = px.line(dfc_grouped, x="day", y=target_col, color="year", markers=True,
-                              text=dfc_grouped[target_col].apply(lambda x: f"<b>{x:,.0f}</b>"),
+                # Build the column to plot (apply metric ton multiplier if needed)
+                df["display_price"] = df[target_col] * price_multiplier
+
+                dfc_grouped = df.groupby(['day', 'year'])["display_price"].mean().reset_index()
+
+                fig = px.line(dfc_grouped, x="day", y="display_price", color="year", markers=True,
+                              text=dfc_grouped["display_price"].apply(lambda x: f"<b>{x:,.0f}</b>"),
                               color_discrete_map={"2024": PRIMARY_COLOR, "2025": ACCENT_COLOR, "2026": "#E67E22"},
-                              labels={"day": "Day of Month", target_col: "Price (₦)"})
+                              labels={"day": "Day of Month", "display_price": price_label})
 
                 fig.update_traces(textposition="top center")
                 fig.update_layout(
@@ -415,19 +417,23 @@ else:
                         dtick=1
                     ),
                     yaxis=dict(
-                        title=dict(text=f"<b>Price (₦)</b>", font=dict(size=16, color="black")),
+                        title=dict(text=f"<b>{price_label}</b>", font=dict(size=16, color="black")),
                         tickfont=dict(size=14, color="black", family="Arial Black"),
                         showline=True, linecolor="black", linewidth=3, gridcolor="#eeeeee"
                     )
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
-                avg_val, max_val, min_val = df[target_col].mean(), df[target_col].max(), df[target_col].min()
+                # KPI cards — apply multiplier
+                avg_val = df["display_price"].mean()
+                max_val = df["display_price"].max()
+                min_val = df["display_price"].min()
+
                 st.markdown(f"""
                     <div class="metric-container">
-                        <div class="metric-card"><div class="metric-label">Avg price</div><div class="metric-value">₦{avg_val:,.0f}</div></div>
-                        <div class="metric-card"><div class="metric-label">High price</div><div class="metric-value">₦{max_val:,.0f}</div></div>
-                        <div class="metric-card"><div class="metric-label">Low price</div><div class="metric-value">₦{min_val:,.0f}</div></div>
+                        <div class="metric-card"><div class="metric-label">Avg {price_label}</div><div class="metric-value">₦{avg_val:,.0f}</div></div>
+                        <div class="metric-card"><div class="metric-label">High {price_label}</div><div class="metric-value">₦{max_val:,.0f}</div></div>
+                        <div class="metric-card"><div class="metric-label">Low {price_label}</div><div class="metric-value">₦{min_val:,.0f}</div></div>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -455,7 +461,7 @@ else:
         st.error(f"Chart error: {str(e)}")
 
 # =====================================================
-# STRATEGIC SOURCING - MOVED HERE (after Commodity Intelligence)
+# STRATEGIC SOURCING
 # =====================================================
 try:
     all_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
@@ -478,14 +484,13 @@ try:
             strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy()
 
             if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
-                strategy_df[target_col] = pd.to_numeric(strategy_df[target_col], errors='coerce')
-                m_ranks = strategy_df.groupby("market")[target_col].mean().sort_values()
+                # Apply multiplier for metric ton
+                strategy_df["display_price"] = pd.to_numeric(strategy_df[target_col], errors='coerce') * price_multiplier
+                m_ranks = strategy_df.groupby("market")["display_price"].mean().sort_values()
                 best_m = m_ranks.index[0]
                 best_p = m_ranks.iloc[0]
                 worst_m = m_ranks.index[-1]
                 worst_p = m_ranks.iloc[-1]
-
-                unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader(f"🎯 Strategic Sourcing: {display_name}")
@@ -508,7 +513,7 @@ try:
                     """, unsafe_allow_html=True)
 
 except Exception as e:
-    pass  # Strategic sourcing not critical, continue if fails
+    pass
 
 # =====================================================
 # 7. STANDALONE DATA ARCHIVE TABLE (WITH PROPER PAGINATION)
@@ -516,7 +521,6 @@ except Exception as e:
 st.markdown("---")
 st.subheader("📚 Internal Market Price Data Archive")
 
-# Initialize page state
 if "archive_page" not in st.session_state:
     st.session_state.archive_page = 1
 
@@ -540,7 +544,6 @@ try:
             placeholder="Search by market, year, or commodity..."
         )
     
-    # Build params with session state
     params = {
         "page": st.session_state.archive_page,
         "page_size": archive_page_size
@@ -556,45 +559,39 @@ try:
         if all_raw_data:
             df_hist = pd.DataFrame(all_raw_data)
             
-            # Formatting and cleaning columns
             df_hist["Date"] = pd.to_datetime(df_hist["start_time"])
             df_hist["Price per Kg (₦)"] = pd.to_numeric(df_hist["price_per_kg"], errors='coerce')
             df_hist["Price per Bag (₦)"] = pd.to_numeric(df_hist["price_per_bag"], errors='coerce')
+            # Metric ton column — derived, no API change needed
+            df_hist["Price per MT (₦)"] = df_hist["Price per Kg (₦)"] * 1000
             
-            # Apply commodity name normalization
             df_hist["commodity"] = df_hist["commodity"].apply(normalize_commodity_for_display)
             
-            # Sort by date, commodity, and market
             df_hist = df_hist.sort_values(['commodity', 'market', 'Date'])
             
-            # Calculate price change
             df_hist['Previous Price (₦)'] = df_hist.groupby(['commodity', 'market'])['Price per Kg (₦)'].shift(1)
             df_hist['% Change'] = ((df_hist['Price per Kg (₦)'] - df_hist['Previous Price (₦)']) / df_hist['Previous Price (₦)'] * 100).round(2)
             
-            # Format date for display
             df_hist["Date_Display"] = df_hist["Date"].dt.strftime('%Y-%m-%d')
 
-            # Select columns to display
-            display_cols = ["Date_Display", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)", "% Change"]
+            display_cols = ["Date_Display", "commodity", "market", "Price per Kg (₦)", "Price per Bag (₦)", "Price per MT (₦)", "% Change"]
             hist_display = df_hist[display_cols].copy()
             
-            # Rename for display
             hist_display = hist_display.rename(columns={
                 "Date_Display": "Date",
                 "commodity": "Commodity", 
                 "market": "Market"
             })
 
-            # Apply Search Filter
             if hist_search:
                 mask = hist_display.apply(lambda row: row.astype(str).str.contains(hist_search, case=False).any(), axis=1)
                 hist_display = hist_display[mask]
             
-            # Display table
             st.dataframe(
                 hist_display.sort_values(by="Date", ascending=False).style.format({
                     "Price per Kg (₦)": "{:,.2f}",
                     "Price per Bag (₦)": "{:,.0f}",
+                    "Price per MT (₦)": "{:,.0f}",
                     "% Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "—"
                 }),
                 use_container_width=True,
@@ -602,10 +599,8 @@ try:
                 height=400
             )
             
-            # Pagination info
             st.caption(f"Showing page {pagination.get('page', 1)} of {pagination.get('total_pages', 1)} | Total records: {pagination.get('total_records', 0):,}")
             
-            # Navigation buttons
             nav_col1, nav_col2, nav_col3 = st.columns([1,2,1])
             
             with nav_col1:
@@ -631,19 +626,16 @@ except Exception as e:
     st.error(f"Archive Table Error: {e}")
 
 # =====================================================
-# 8. MONTHLY INTELLIGENCE REPORT & STRATEGIC SOURCING
+# 8. MONTHLY INTELLIGENCE REPORT & AI ADVISOR
 # =====================================================
 st.markdown("---")
 st.header(f"📋 Monthly Intelligence Report: {month_sel}")
 
-# Fetch month-specific data for PDF and analysis
 try:
-    # Get ALL data for monthly report (use large page size)
     month_response = requests.get(f"{BASE_URL}/prices", params={"page": 1, "page_size": 10000}, headers=HEADERS, timeout=20)
     if month_response.status_code == 200:
         response_data = month_response.json()
         
-        # Handle paginated response
         if isinstance(response_data, dict) and 'data' in response_data:
             all_data = pd.DataFrame(response_data['data'])
         else:
@@ -654,11 +646,9 @@ try:
         all_data['price_per_kg'] = pd.to_numeric(all_data['price_per_kg'], errors='coerce')
         all_data['price_per_bag'] = pd.to_numeric(all_data['price_per_bag'], errors='coerce')
         
-        # Filter for selected month
         report_data = all_data[all_data['month_name'] == month_sel].copy()
         
         if not report_data.empty:
-            # PDF Download Button
             pdf_buffer = generate_pdf_report(month_sel, report_data)
             st.download_button(
                 label="📥 Download Monthly Intelligence Report (PDF)",
@@ -669,20 +659,16 @@ try:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # STRATEGIC SOURCING CARDS (responds to Price per Kg/Bag toggle)
             strategy_df = report_data[report_data["commodity"].str.lower() == api_commodity_name.lower()].copy() if api_commodity_name else pd.DataFrame()
             
             if not strategy_df.empty and len(strategy_df['market'].unique()) > 1:
-                # Use the same target_col as selected in sidebar (price_per_kg or price_per_bag)
-                strategy_df[target_col] = pd.to_numeric(strategy_df[target_col], errors='coerce')
-                m_ranks = strategy_df.groupby("market")[target_col].mean().sort_values()
+                # Apply multiplier for strategic sourcing cards
+                strategy_df["display_price"] = pd.to_numeric(strategy_df[target_col], errors='coerce') * price_multiplier
+                m_ranks = strategy_df.groupby("market")["display_price"].mean().sort_values()
                 best_m = m_ranks.index[0]
                 best_p = m_ranks.iloc[0]
                 worst_m = m_ranks.index[-1]
                 worst_p = m_ranks.iloc[-1]
-                
-                # Display unit based on selection
-                unit_label = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
 
                 # AI MARKET ADVISOR
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -733,7 +719,6 @@ try:
                 st.subheader(f"📊 Detailed Gap Analysis: {month_sel}")
                 
                 try:
-                    # Pagination controls
                     gap_page = st.number_input("Page", min_value=1, value=1, step=1, key="gap_page")
                     gap_page_size = st.selectbox("Records per page", [10, 20, 50, 100], index=1, key="gap_page_size")
                     
@@ -754,37 +739,39 @@ try:
                         pagination = gap_result.get('pagination', {})
                         
                         if gap_data:
-                            # Convert to DataFrame
                             gap_df = pd.DataFrame(gap_data)
-                            
-                            # Normalize commodity names for display
                             gap_df['commodity'] = gap_df['commodity'].apply(normalize_commodity_for_display)
                             
-                            # Rename columns for display
+                            # Apply metric ton multiplier to gap analysis prices
+                            for col in ['min_price', 'max_price', 'avg_price']:
+                                if col in gap_df.columns:
+                                    gap_df[col] = pd.to_numeric(gap_df[col], errors='coerce') * price_multiplier
+
                             gap_display = gap_df.rename(columns={
                                 'commodity': 'Commodity',
-                                'min_price': 'Min Price',
-                                'max_price': 'Max Price',
-                                'avg_price': 'Avg Price',
+                                'min_price': f'Min {price_label}',
+                                'max_price': f'Max {price_label}',
+                                'avg_price': f'Avg {price_label}',
                                 'cheapest_source': 'Cheapest Source',
                                 'top_selling_market': 'Top Selling Market'
                             })
                             
-                            # Display table
+                            fmt_col_min = f'Min {price_label}'
+                            fmt_col_max = f'Max {price_label}'
+                            fmt_col_avg = f'Avg {price_label}'
+
                             st.dataframe(
                                 gap_display.style.format({
-                                    'Min Price': '₦{:,.2f}',
-                                    'Max Price': '₦{:,.2f}',
-                                    'Avg Price': '₦{:,.2f}'
+                                    fmt_col_min: '₦{:,.2f}',
+                                    fmt_col_max: '₦{:,.2f}',
+                                    fmt_col_avg: '₦{:,.2f}'
                                 }),
                                 use_container_width=True,
                                 hide_index=True
                             )
                             
-                            # Pagination info
                             st.caption(f"Showing page {pagination.get('page', 1)} of {pagination.get('total_pages', 1)} | Total records: {pagination.get('total_records', 0)}")
                             
-                            # Navigation buttons
                             col_prev, col_next = st.columns(2)
                             
                             with col_prev:
@@ -803,184 +790,7 @@ try:
                 
                 except Exception as e:
                     st.warning(f"Gap analysis: {str(e)}")
-                
-                # =====================================================
-                # MARKET COMPARISON SECTION (INTERNAL + EXTERNAL) i commented this section out. ( You can uncomment if needed.)
-                # =====================================================
-                """
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader("📊 Market Comparison")
-                st.write("Compare prices across internal and external markets for any commodity")
 
-                try:
-                    # --- BUILD COMBINED MARKET & COMMODITY POOL ---
-
-                    # Internal markets from already-loaded all_data
-                    internal_markets = sorted(all_data['market'].dropna().unique().tolist())
-
-                    # Internal commodities (normalized for display)
-                    internal_commodities_raw = all_data['commodity'].dropna().unique().tolist()
-                    internal_commodities = sorted(set(normalize_commodity_for_display(c) for c in internal_commodities_raw))
-
-                    # External markets & commodities from other-sources API
-                    ext_markets = []
-                    ext_commodities = []
-                    ext_df_full = pd.DataFrame()
-                    try:
-                        ext_resp = requests.get(
-                            f"{BASE_URL}/other-sources",
-                            params={"page": 1, "page_size": 10000},
-                            headers=HEADERS,
-                            timeout=15
-                        )
-                        if ext_resp.status_code == 200:
-                            ext_result = ext_resp.json()
-                            ext_raw = ext_result.get('data', ext_result) if isinstance(ext_result, dict) else ext_result
-                            if ext_raw:
-                                ext_df_full = pd.DataFrame(ext_raw)
-                                ext_df_full['date'] = pd.to_datetime(ext_df_full['date'], errors='coerce')
-                                ext_df_full['month_name'] = ext_df_full['date'].dt.strftime('%B')
-                                ext_df_full['price'] = pd.to_numeric(ext_df_full['price'], errors='coerce')
-                                ext_markets = sorted(ext_df_full['location'].dropna().unique().tolist())
-                                ext_commodities = sorted(ext_df_full['commodity'].dropna().unique().tolist())
-                    except Exception:
-                        pass
-
-                    # Combined and deduplicated lists
-                    all_combined_markets = sorted(set(
-                        [f"[Internal] {m}" for m in internal_markets] +
-                        [f"[External] {m}" for m in ext_markets]
-                    ))
-                    all_combined_commodities = sorted(set(internal_commodities + ext_commodities))
-
-                    if len(all_combined_markets) >= 2 and all_combined_commodities:
-
-                        # --- THREE DROPDOWNS ---
-                        dd_col1, dd_col2, dd_col3 = st.columns(3)
-
-                        with dd_col1:
-                            comp_commodity = st.selectbox(
-                                "🌾 Select Commodity",
-                                all_combined_commodities,
-                                index=all_combined_commodities.index(display_name) if display_name in all_combined_commodities else 0,
-                                key="comp_commodity"
-                            )
-
-                        with dd_col2:
-                            market_a = st.selectbox("Select First Market", all_combined_markets, key="comp_market_a")
-
-                        with dd_col3:
-                            remaining_markets = [m for m in all_combined_markets if m != market_a]
-                            market_b = st.selectbox("Select Second Market", remaining_markets, key="comp_market_b")
-
-                        # --- PRICE LOOKUP HELPER ---
-                        def get_price_for_market(market_label, commodity_sel):
-                            """
-                            Returns avg price per kg for a given market label and commodity.
-                            Internal markets use price_per_kg; external use price (assumed per kg unless unit=bag).
-                            """
-                            source_type = "internal" if market_label.startswith("[Internal]") else "external"
-                            market_name = market_label.replace("[Internal] ", "").replace("[External] ", "")
-
-                            if source_type == "internal":
-                                # Match commodity: try exact normalized match first, then partial
-                                api_name = convert_display_to_api_format(commodity_sel)
-                                subset = all_data[all_data['market'].str.lower() == market_name.lower()]
-                                subset = subset[subset['commodity'].str.lower() == api_name.lower()]
-                                if subset.empty:
-                                    subset = all_data[all_data['market'].str.lower() == market_name.lower()]
-                                    subset = subset[subset['commodity'].str.contains(commodity_sel, case=False, na=False)]
-                                if subset.empty:
-                                    return None
-                                col = 'price_per_kg' if target_col == 'price_per_kg' else 'price_per_bag'
-                                val = pd.to_numeric(subset[col], errors='coerce').mean()
-                                return round(float(val), 2) if pd.notna(val) else None
-
-                            else:  # external
-                                if ext_df_full.empty:
-                                    return None
-                                subset = ext_df_full[ext_df_full['location'].str.lower() == market_name.lower()]
-                                subset = subset[subset['commodity'].str.contains(commodity_sel, case=False, na=False)]
-                                if subset.empty:
-                                    return None
-                                # Normalize to per-kg if unit is bag (assume 100kg bag)
-                                prices = []
-                                for _, row in subset.iterrows():
-                                    p = row['price']
-                                    unit = str(row.get('unit', '')).lower()
-                                    if 'bag' in unit:
-                                        p = p / 100
-                                    prices.append(p)
-                                return round(float(pd.Series(prices).mean()), 2) if prices else None
-
-                        # --- CALCULATE PRICES ---
-                        price_a = get_price_for_market(market_a, comp_commodity)
-                        price_b = get_price_for_market(market_b, comp_commodity)
-
-                        unit_label_comp = "Avg/Kg" if price_choice == "Price per Kg" else "Avg/Bag"
-                        source_a = "Internal" if market_a.startswith("[Internal]") else "External"
-                        source_b = "Internal" if market_b.startswith("[Internal]") else "External"
-                        name_a = market_a.replace("[Internal] ", "").replace("[External] ", "")
-                        name_b = market_b.replace("[Internal] ", "").replace("[External] ", "")
-
-                        if price_a is not None and price_b is not None:
-                            diff = price_b - price_a
-                            perc_diff = (diff / price_a) * 100 if price_a != 0 else 0
-
-                            cheaper_name   = name_a if price_a <= price_b else name_b
-                            cheaper_source = source_a if price_a <= price_b else source_b
-                            cheaper_price  = min(price_a, price_b)
-                            exp_name       = name_b if price_a <= price_b else name_a
-                            exp_source     = source_b if price_a <= price_b else source_a
-                            exp_price      = max(price_a, price_b)
-
-                            # Display cards
-                            comp_col1, comp_col2 = st.columns(2)
-                            with comp_col1:
-                                st.markdown(f"""
-                                    <div class="strategy-card best-buy">
-                                        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">CHEAPER MARKET • {cheaper_source}</div>
-                                        <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{cheaper_name}</div>
-                                        <div style="font-size: 20px;">₦{cheaper_price:,.2f} <small>({unit_label_comp})</small></div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            with comp_col2:
-                                st.markdown(f"""
-                                    <div class="strategy-card worst-buy">
-                                        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">MORE EXPENSIVE • {exp_source}</div>
-                                        <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{exp_name}</div>
-                                        <div style="font-size: 20px;">₦{exp_price:,.2f} <small>({unit_label_comp})</small></div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-
-                            # Price difference insight
-                            if abs(perc_diff) > 0:
-                                direction = "more expensive" if perc_diff > 0 else "cheaper"
-                                insight_text = (
-                                    f"{name_b} ({source_b}) is **{abs(perc_diff):.1f}%** {direction} than "
-                                    f"{name_a} ({source_a}) — **₦{abs(diff):,.2f}** difference"
-                                )
-                                st.markdown(f"""
-                                    <div style="background-color: #FFF4E5; padding: 20px; border-radius: 10px;
-                                                margin-top: 15px; border-left: 5px solid {ACCENT_COLOR};">
-                                        <p style="color: #1F2937; font-size: 17px; font-weight: 600; margin: 0; line-height: 1.6;">
-                                            💰 <b>Price Difference:</b> {insight_text}
-                                        </p>
-                                    </div>
-                                """, unsafe_allow_html=True)
-
-                        elif price_a is None and price_b is None:
-                            st.warning(f"No price data found for **{comp_commodity}** in either selected market.")
-                        elif price_a is None:
-                            st.warning(f"No price data for **{comp_commodity}** in **{name_a}** ({source_a}).")
-                        else:
-                            st.warning(f"No price data for **{comp_commodity}** in **{name_b}** ({source_b}).")
-
-                    else:
-                        st.info("Not enough combined market data available to enable comparison.")
-
-                except Exception as comp_err:
-                    st.warning(f"Market comparison unavailable: {str(comp_err)}")
             else:
                 if api_commodity_name:
                     st.info(f"Insufficient market data for strategic sourcing analysis of {display_name} in {month_sel}.")
@@ -988,7 +798,6 @@ try:
             st.info(f"No data available for {month_sel}.")
 except Exception as e:
     st.error(f"Monthly Report Error: {e}")
-    """
 
 # =====================================================
 # 10. OTHER SOURCES COMMODITY PRICES (WITH PROPER PAGINATION)
@@ -996,12 +805,10 @@ except Exception as e:
 st.markdown("---")
 st.markdown("<h1 style='text-align:center; color: #1F7A3F;'>🌐 Externally Sourced Market Prices</h1>", unsafe_allow_html=True)
 
-# Initialize page state for other sources
 if "os_page" not in st.session_state:
     st.session_state.os_page = 1
 
 try:
-    # Pagination controls for Other Sources
     os_col1, os_col2 = st.columns(2)
     
     with os_col1:
@@ -1010,7 +817,6 @@ try:
     with os_col2:
         st.write(f"Current Page: {st.session_state.os_page}")
     
-    # Fetch other sources data with pagination using session state
     os_response = requests.get(
         f"{BASE_URL}/other-sources", 
         params={"page": st.session_state.os_page, "page_size": os_page_size},
@@ -1021,13 +827,10 @@ try:
     if os_response.status_code == 200:
         os_result = os_response.json()
         
-        # Handle both paginated and non-paginated responses
         if isinstance(os_result, dict) and 'data' in os_result:
-            # Paginated response
             os_data_raw = os_result.get('data', [])
             os_pagination = os_result.get('pagination', {})
         elif isinstance(os_result, list):
-            # Non-paginated response (old format)
             os_data_raw = os_result
             os_pagination = {
                 "page": 1,
@@ -1044,17 +847,14 @@ try:
         if os_data_raw and len(os_data_raw) > 0:
             os_data = pd.DataFrame(os_data_raw)
             
-            # Data processing
             os_data['date'] = pd.to_datetime(os_data['date'], errors='coerce')
             os_data['month_name'] = os_data['date'].dt.strftime('%B')
             os_data['year'] = os_data['date'].dt.year.astype(str)
             os_data['price'] = pd.to_numeric(os_data['price'], errors='coerce')
             
-            # INDEPENDENT SIDEBAR FILTERS FOR OTHER SOURCES
             st.sidebar.markdown("---")
             st.sidebar.markdown("### 🌐 Externally Sourced Market Controls")
             
-            # Get commodities from dedicated API endpoint
             try:
                 filters_response = requests.get(
                     f"{BASE_URL}/filters/other-sources-commodities",
@@ -1069,7 +869,6 @@ try:
             except Exception as e:
                 os_commodities = ["All"] + sorted(os_data['commodity'].unique().tolist())
 
-            # Get locations from /filters/all endpoint
             try:
                 loc_filters_response = requests.get(f"{BASE_URL}/filters/all", headers=HEADERS, timeout=10)
                 if loc_filters_response.status_code == 200:
@@ -1083,7 +882,6 @@ try:
             except:
                 os_locations = ["All"] + sorted(os_data['location'].unique().tolist())
 
-            # Independent filters
             selected_os_comm = st.sidebar.selectbox(
                 "Other sources Commodity", 
                 os_commodities, 
@@ -1104,15 +902,12 @@ try:
                 key="os_month_independent"
             )
             
-            # Apply filters
             filtered_os = os_data.copy()
             
-            # Filter by selected years from main sidebar
             if 'selected_years' in locals() and selected_years and len(selected_years) > 0:
                 if 'year' in filtered_os.columns and not filtered_os['year'].isna().all():
                     filtered_os = filtered_os[filtered_os['year'].isin(selected_years)]
             
-            # Apply other sources specific filters
             if selected_os_comm != "All":
                 filtered_os = filtered_os[filtered_os['commodity'] == selected_os_comm]
             
@@ -1122,7 +917,6 @@ try:
             if selected_os_month != "All":
                 filtered_os = filtered_os[filtered_os['month_name'] == selected_os_month]
             
-            # Search box
             os_search = st.text_input(
                 "🔍 Search by commodity, location...", 
                 placeholder="Enter keyword...",
@@ -1136,67 +930,46 @@ try:
                 )
                 filtered_os = filtered_os[mask]
             
-            # Display table
             if not filtered_os.empty:
-                # Format the display dataframe
                 display_df = filtered_os[['date', 'commodity', 'location', 'unit', 'price']].copy()
-                
-                # Format date column
                 display_df['Date'] = display_df['date'].dt.strftime('%d %b %Y, %I:%M %p')
-                
-                # Rename columns
                 display_df = display_df.rename(columns={
                     'commodity': 'Commodity',
                     'location': 'Location',
                     'unit': 'unit',
                     'price': 'Price (₦)'
                 })
-                
-                # Select final columns in correct order
                 display_df = display_df[['Date', 'Commodity', 'Location', 'unit', 'Price (₦)']]
                 
-                # Display with formatting
                 st.dataframe(
-                    display_df.style.format({
-                        'Price (₦)': '₦{:,.0f}'
-                    }),
+                    display_df.style.format({'Price (₦)': '₦{:,.0f}'}),
                     use_container_width=True,
                     hide_index=True,
                     height=600
                 )
 
-                # Pagination info and navigation
                 st.markdown("---")
                 
-                # Create columns for pagination controls
                 download_col1, download_col2 = st.columns([1, 2])
 
                 with download_col1:
-                    # PDF Download Button (keeping existing functionality)
                     if st.button("📄 Download Monthly Report (PDF)", key="download_os_pdf"):
                         try:
-                            # Create PDF buffer
                             pdf_buffer = BytesIO()
                             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
                             elements = []
                             styles = getSampleStyleSheet()
                             
-                            # Title
                             title = Paragraph(f"<b>Externally Sourced Market Prices</b>", styles['Title'])
                             elements.append(title)
                             elements.append(Spacer(1, 12))
                             
-                            # Date and summary
-                            date_text = f"Report Date: {datetime.now().strftime('%B %d, %Y')}"
-                            date_para = Paragraph(date_text, styles['Normal'])
+                            date_para = Paragraph(f"Report Date: {datetime.now().strftime('%B %d, %Y')}", styles['Normal'])
                             elements.append(date_para)
-                            
-                            summary_text = f"Total Records: {len(filtered_os):,}"
-                            summary_para = Paragraph(summary_text, styles['Normal'])
+                            summary_para = Paragraph(f"Total Records: {len(filtered_os):,}", styles['Normal'])
                             elements.append(summary_para)
                             elements.append(Spacer(1, 12))
                             
-                            # Prepare table data
                             table_data = [['Date', 'Commodity', 'Location', 'Price', 'Unit']]
                             
                             for _, row in filtered_os.head(500).iterrows():
@@ -1208,7 +981,6 @@ try:
                                     str(row['unit'])
                                 ])
                             
-                            # Create table
                             t = Table(table_data)
                             t.setStyle(TableStyle([
                                 ('BACKGROUND', (0, 0), (-1, 0), colors.green),
@@ -1222,12 +994,9 @@ try:
                             ]))
                             
                             elements.append(t)
-                            
-                            # Build PDF
                             doc.build(elements)
                             pdf_buffer.seek(0)
                             
-                            # Download button
                             st.download_button(
                                 label="⬇️ Click to Download",
                                 data=pdf_buffer,
@@ -1242,7 +1011,6 @@ try:
                             st.error(f"Failed to generate PDF: {e}")
 
                 with download_col2:
-                    # Pagination info display
                     st.markdown(
                         f"""
                         <div style='text-align: right; padding: 10px; color: #666; font-size: 14px;'>
@@ -1254,7 +1022,6 @@ try:
                         unsafe_allow_html=True
                     )
                 
-                # Pagination navigation with session state
                 os_nav_col1, os_nav_col2, os_nav_col3 = st.columns([1, 2, 1])
                 
                 with os_nav_col1:
@@ -1274,7 +1041,6 @@ try:
             else:
                 st.warning("⚠️ No data matches your filter criteria.")
                 
-                # Show helpful debugging info
                 if 'selected_years' in locals() and selected_years:
                     available_years = sorted(os_data['year'].unique().tolist()) if 'year' in os_data.columns else []
                     st.info(f"""
@@ -1290,21 +1056,15 @@ try:
             st.info("📭 **No Other Sources data available yet.**")
             st.write("""
             **To add data to this section:**
-            1. Use the `upload_other_sources_smart.py` script to upload scraped market data
+            1. Use the `upload_other_sources_smart.py` script
             2. Or use the API endpoint: `POST /bulk-upload-other-sources`
             
-            **Expected data format:**
-            - date
-            - commodity  
-            - location (market name)
-            - unit
-            - price
+            **Expected data format:** date, commodity, location (market name), unit, price
             
             Once you upload data, it will appear here automatically!
             """)
     else:
         st.error(f"❌ Failed to fetch Other Sources data. API Status: {os_response.status_code}")
-        st.write("Please check if the backend API is running correctly.")
         
 except Exception as e:
     st.error(f"Other Sources Error: {e}")
