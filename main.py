@@ -251,6 +251,7 @@ def get_all_prices(
         df = fetch_data()
         if 'start_time' in df.columns:
             df['start_time'] = df['start_time'].astype(str)
+        df['price_per_tonne'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 1000
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
         if page < 1:
@@ -739,6 +740,7 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
             }
 
     chart_data_df = df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].copy()
+    chart_data_df['price_per_tonne'] = (chart_data_df['price_per_kg'].astype(float) * 1000).astype(str)
     chart_data_df['start_time'] = chart_data_df['start_time'].astype(str)
     chart_data_df['price_per_kg'] = chart_data_df['price_per_kg'].astype(str)
     chart_data_df['price_per_bag'] = chart_data_df['price_per_bag'].astype(str)
@@ -800,6 +802,8 @@ def get_filtered_prices(
                     "has_previous": False
                 }
             }
+
+        df['price_per_tonne'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 1000
 
         # Handle search parameter (searches across multiple fields)
         if search:
@@ -1303,13 +1307,13 @@ def compare_two_markets(
             "comparison": {
                 "cheaper_market": cheaper_market,
                 "more_expensive_market": more_expensive,
-                "buy_from": {                                       # ✅ UPDATED
+                "buy_from": {
                     "market": cheaper_market,
                     "avg_price_per_kg": cheaper_data['avg_price_per_kg'],
                     "avg_price_per_bag": cheaper_data['avg_price_per_bag'],
                     "label": "✅ Lowest Price — Buy Here"
                 },
-                "avoid": {                                          # ✅ UPDATED
+                "avoid": {
                     "market": more_expensive,
                     "avg_price_per_kg": expensive_data['avg_price_per_kg'],
                     "avg_price_per_bag": expensive_data['avg_price_per_bag'],
@@ -1368,6 +1372,9 @@ def get_gap_analysis(
                 "min_price": round(float(commodity_df['price_per_kg'].min()), 2),
                 "max_price": round(float(commodity_df['price_per_kg'].max()), 2),
                 "avg_price": round(float(commodity_df['price_per_kg'].mean()), 2),
+                "min_price_per_tonne": round(float(commodity_df['price_per_kg'].min()) * 1000, 2),
+                "max_price_per_tonne": round(float(commodity_df['price_per_kg'].max()) * 1000, 2),
+                "avg_price_per_tonne": round(float(commodity_df['price_per_kg'].mean()) * 1000, 2),
                 "cheapest_source": market_avg.idxmin(),
                 "top_selling_market": market_avg.idxmax()
             })
@@ -1437,3 +1444,4 @@ def bulk_upload_other_sources(records: List[OtherSourceRecord], token: str = Dep
         return {"status": "success", "message": f"Added {len(records)} other sources records"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
+        
