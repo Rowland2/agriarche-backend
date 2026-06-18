@@ -22,95 +22,101 @@ ACCENT_COLOR = "#F4B266"
 BG_COLOR = "#F5F7FA"
 LOGO_PATH = "assets/logo.png"
 
+# ── Commodity info keyed EXACTLY to the database names after SQL rename ──
 COMMODITY_INFO = {
-    "Soybeans": {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
-    "Brown Cowpea": {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
-    "White Cowpea": {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
-    "Honey beans": {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
-    "White Maize": {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
-    "Paddy Rice": {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
-    "Processed Rice": {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
-    "Red Sorghum": {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
-    "White Sorghum": {"desc": "Drought-resistant white grain variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Premium variety for food processing."},
-    "Yellow Sorghum": {"desc": "Yellow grain sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Used for brewing and animal feed."},
-    "Sorghum": {"desc": "General sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Versatile grain for food and industry."},
-    "Millet": {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
-    "Groundnut gargaja": {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty."},
-    "Groundnut kampala": {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."}
+    "Brown Cowpea":          {"desc": "Protein-rich legume popular in local diets.", "markets": "Dawanau and Potiskum", "abundance": "Oct through Jan", "note": "Supply depends on Northern storage."},
+    "White Cowpea":          {"desc": "Staple bean variety used for commercial flour.", "markets": "Dawanau and Bodija", "abundance": "Oct and Nov", "note": "High demand in South drives prices."},
+    "Groundnut (Gargaja)":   {"desc": "Local peanut variety for oil extraction.", "markets": "Dawanau and Gombe", "abundance": "Oct and Nov", "note": "Sahel region specialty."},
+    "Groundnut (Kampala)":   {"desc": "Large, premium roasting groundnuts.", "markets": "Kano and Dawanau", "abundance": "Oct and Nov", "note": "Higher oil content than Gargaja."},
+    "Groundnut (Kwachamba)": {"desc": "Kwachamba groundnut variety with large kernels.", "markets": "Northern markets", "abundance": "Oct and Nov", "note": "Highly sought for direct consumption."},
+    "Hibiscus (Whole)":      {"desc": "Dried hibiscus calyces used for beverages and export.", "markets": "Kano and Kaduna", "abundance": "Nov through Jan", "note": "Strong export demand to Europe and Asia."},
+    "Honey Beans (Oloyin)":  {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
+    "White Maize":           {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
+    "Millet":                {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
+    "Paddy Rice":            {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
+    "Processed Rice":        {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
+    "Sesame":                {"desc": "Oilseed crop with strong export demand.", "markets": "Benue and Nassarawa", "abundance": "Oct and Nov", "note": "Nigeria is one of Africa's top sesame exporters."},
+    "Soybeans":              {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
+    "Red Sorghum":           {"desc": "Drought-resistant grain staple.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Market substitute for Maize."},
+    "White Sorghum":         {"desc": "Drought-resistant white grain variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Premium variety for food processing."},
+    "Yellow Sorghum":        {"desc": "Yellow grain sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Used for brewing and animal feed."},
+    "Sorghum":               {"desc": "General sorghum variety.", "markets": "Dawanau and Gombe", "abundance": "Dec and Jan", "note": "Versatile grain for food and industry."},
 }
 
 def normalize_commodity_for_display(name):
-    """Normalize to match COMMODITY_INFO keys with color first"""
-    name_lower = name.lower().strip()
-    
+    """
+    Map any DB commodity name → the exact key used in COMMODITY_INFO above.
+    Since the DB was already renamed by SQL, most names pass through unchanged.
+    This function handles any legacy variations that might still exist.
+    """
+    name_stripped = name.strip()
+    name_lower = name_stripped.lower()
+
+    # Exact DB matches (post-SQL-rename) — return as-is
+    exact = {k.lower(): k for k in COMMODITY_INFO}
+    if name_lower in exact:
+        return exact[name_lower]
+
+    # Legacy / variant fallbacks
     if "cowpea" in name_lower and "brown" in name_lower:
         return "Brown Cowpea"
-    elif "cowpea" in name_lower and "white" in name_lower:
+    if "cowpea" in name_lower and "white" in name_lower:
         return "White Cowpea"
-    elif "maize" in name_lower and "white" in name_lower:
+    if "maize" in name_lower and "white" in name_lower:
         return "White Maize"
-    elif "sorghum" in name_lower and "red" in name_lower:
+    if name_lower == "maize":
+        return "White Maize"
+    if "sorghum" in name_lower and "red" in name_lower:
         return "Red Sorghum"
-    elif "sorghum" in name_lower and "white" in name_lower:
+    if "sorghum" in name_lower and "white" in name_lower:
         return "White Sorghum"
-    elif "sorghum" in name_lower and "yellow" in name_lower:
+    if "sorghum" in name_lower and "yellow" in name_lower:
         return "Yellow Sorghum"
-    elif name_lower == "sorghum":
+    if name_lower == "sorghum":
         return "Sorghum"
-    elif "soya" in name_lower or "soy" in name_lower:
+    if "soya" in name_lower or "soy" in name_lower:
         return "Soybeans"
-    elif "honey" in name_lower:
-        return "Honey Beans"
-    elif "rice" in name_lower and "paddy" in name_lower:
+    if "honey" in name_lower:
+        return "Honey Beans (Oloyin)"
+    if "paddy" in name_lower or ("rice" in name_lower and "paddy" in name_lower):
         return "Paddy Rice"
-    elif "rice" in name_lower and "process" in name_lower:
+    if "rice" in name_lower and "process" in name_lower:
         return "Processed Rice"
-    elif "millet" in name_lower:
+    if "millet" in name_lower:
         return "Millet"
-    elif "groundnut" in name_lower and "gargaja" in name_lower:
-        return "Groundnut Gargaja"
-    elif "groundnut" in name_lower and "kampala" in name_lower:
-        return "Groundnut kampala"
-    
-    return name
+    if "gargaja" in name_lower:
+        return "Groundnut (Gargaja)"
+    if "kampala" in name_lower or "kamapal" in name_lower:
+        return "Groundnut (Kampala)"
+    if "kwachamba" in name_lower:
+        return "Groundnut (Kwachamba)"
+    if "hibiscus" in name_lower:
+        return "Hibiscus (Whole)"
+    if "sesame" in name_lower:
+        return "Sesame"
+
+    return name_stripped
+
 
 def convert_display_to_api_format(display_name):
-    """Convert display name back to API format for querying"""
-    name = display_name.strip()
-    
-    mappings = {
-        "Brown Cowpea": "Cowpea Brown",
-        "White Cowpea": "Cowpea White",
-        "White Maize": "Maize White",
-        "Red Sorghum": "Sorghum Red",
-        "White Sorghum": "Sorghum White",
-        "Yellow Sorghum": "Sorghum Yellow",
-        "Sorghum": "Sorghum",
-        "Soybeans": "Soybeans",
-        "Honey beans": "Honey Beans",
-        "Paddy Rice": "Paddy Rice",
-        "Processed Rice": "Processed Rice",
-        "Millet": "Millet",
-        "Groundnut gargaja": "Groundnut Gargaja",
-        "Groundnut kampala": "Groundnut kampala"
-    }
-    
-    return mappings.get(name, name)
+    """
+    Since the DB was renamed by SQL, the display names now match the DB names
+    exactly — so no translation is needed. We keep this function in case the
+    API ever uses different casing.
+    """
+    # Identity mapping — DB names now equal display names
+    return display_name.strip()
+
 
 HARDCODED_COMMODITIES = sorted(list(COMMODITY_INFO.keys()))
 HARDCODED_MARKETS = ["Biliri", "Dawanau", "Giwa", "Kumo", "Lashe Money", "Pambegua", "Potiskum", "Sabo Kasuwa Mubi"]
 
 def format_commodity_name(name):
-    """Format commodity names to put color adjectives FIRST"""
-    parts = name.split()
-    colors_list = ["white", "brown", "red", "yellow", "black"]
-    
-    if len(parts) > 1 and parts[-1].lower() in colors_list:
-        color = parts[-1].capitalize()
-        commodity = ' '.join(parts[:-1])
-        return f"{color} {commodity}"
-    
-    return name.capitalize()
+    """
+    Return the commodity name as-is for display.
+    DB names are already in the correct display format after SQL rename.
+    """
+    return name.strip() if name else name
 
 st.set_page_config(page_title="Agriarche Intelligence Hub", layout="wide")
 
