@@ -35,8 +35,6 @@ origins_prod = [
     "https://prod.kasuwa.com",
 ]
 
-
-
 allowed_origins = origins_dev + origins_prod
 
 app.add_middleware(
@@ -242,6 +240,13 @@ def fetch_other_sources_data():
         raise HTTPException(status_code=500, detail=f"Other Sources Database Error: {str(e)}")
 
 
+def add_tonne_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Add price_per_tonne column derived from price_per_kg. 1 tonne = 1,000 kg."""
+    if 'price_per_kg' in df.columns:
+        df['price_per_tonne'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 1000
+    return df
+
+
 @app.get("/prices")
 def get_all_prices(
     page: Optional[int] = 1,
@@ -249,9 +254,10 @@ def get_all_prices(
 ):
     try:
         df = fetch_data()
+        # Add tonne column
+        df = add_tonne_column(df)
         if 'start_time' in df.columns:
             df['start_time'] = df['start_time'].astype(str)
-        df['price_per_tonne'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 1000
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
         if page < 1:
@@ -301,7 +307,7 @@ def get_prices_with_change(
         df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce')
 
         if commodity:
-            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
 
         if df.empty:
             return {
@@ -330,6 +336,9 @@ def get_prices_with_change(
         df['percent_change'] = df['percent_change'].apply(
             lambda x: str(x) if pd.notna(x) else 'N/A'
         )
+
+        # Add tonne column
+        df = add_tonne_column(df)
 
         df['start_time'] = df['start_time'].astype(str)
 
@@ -410,17 +419,6 @@ def get_filtered_other_sources(
     page: int = 1,
     page_size: int = 100
 ):
-    """
-    Get filtered external sources data with search
-
-    Parameters:
-    - commodity: Filter by commodity name
-    - location: Filter by location/market
-    - month: Filter by month name
-    - search: Search across commodity, location, unit
-    - page: Page number
-    - page_size: Records per page
-    """
     try:
         df = fetch_other_sources_data()
 
@@ -437,7 +435,6 @@ def get_filtered_other_sources(
                 }
             }
 
-        # Handle search parameter
         if search:
             search_lower = search.lower()
             df = df[
@@ -445,10 +442,8 @@ def get_filtered_other_sources(
                 df['location'].str.lower().str.contains(search_lower, na=False) |
                 df['unit'].str.lower().str.contains(search_lower, na=False)
             ]
-
-        # Existing filters (only apply if search is not used)
         elif commodity:
-            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
 
         if location and not search:
             df = df[df['location'].str.contains(location, case=False, na=False)]
@@ -458,11 +453,9 @@ def get_filtered_other_sources(
             df['month_name'] = df['date'].dt.strftime('%B')
             df = df[df['month_name'].str.lower() == month.lower()]
 
-        # Sort by most recent
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date', ascending=False)
 
-        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
 
@@ -525,7 +518,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             }
 
         df['start_time'] = pd.to_datetime(df['start_time'])
-        df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+        df_commodity = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
 
         if df_commodity.empty:
             available = sorted(df['commodity'].unique().tolist())
@@ -577,24 +570,18 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         best_price = market_avg.min()
         worst_price = market_avg.max()
 
-        # ✅ IMPROVED TREND DETECTION
         trend = "stable"
         trend_percent = 0
 
-        # FIXED: Lower requirement from 14 to 4 records
         if len(df_commodity) >= 4:
             try:
                 sorted_data = df_commodity.sort_values('start_time')
-                
-                # Use half the data for comparison (more flexible)
                 half_point = len(sorted_data) // 2
                 if half_point >= 2:
                     recent_avg = sorted_data.tail(half_point)['price_per_kg'].mean()
                     previous_avg = sorted_data.head(half_point)['price_per_kg'].mean()
-                    
                     if pd.notna(recent_avg) and pd.notna(previous_avg) and previous_avg > 0:
                         diff = recent_avg - previous_avg
-                        # More sensitive: 1% threshold instead of 2%
                         if abs(diff) > previous_avg * 0.01:
                             trend = "rising" if diff > 0 else "falling"
                             trend_percent = abs((diff / previous_avg) * 100)
@@ -635,20 +622,25 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
                     "type": "best_market",
                     "market": best_market,
                     "price_per_kg": round(float(best_price), 2),
+                    "price_per_tonne": round(float(best_price) * 1000, 2),
                     "reason": "Lowest average price"
                 },
                 {
                     "type": "avoid_market",
                     "market": worst_market,
                     "price_per_kg": round(float(worst_price), 2),
+                    "price_per_tonne": round(float(worst_price) * 1000, 2),
                     "reason": "Highest average price"
                 }
             ],
             "market_insights": {
-                "average_price": round(float(avg_price), 2),
+                "average_price_per_kg": round(float(avg_price), 2),
+                "average_price_per_tonne": round(float(avg_price) * 1000, 2),
                 "price_range": {
-                    "min": round(float(market_avg.min()), 2),
-                    "max": round(float(market_avg.max()), 2)
+                    "min_per_kg": round(float(market_avg.min()), 2),
+                    "max_per_kg": round(float(market_avg.max()), 2),
+                    "min_per_tonne": round(float(market_avg.min()) * 1000, 2),
+                    "max_per_tonne": round(float(market_avg.max()) * 1000, 2),
                 },
                 "volatility": volatility,
                 "data_points": len(df_commodity)
@@ -659,7 +651,6 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
         import traceback
         error_detail = f"AI advisor failed: {str(e)}\n{traceback.format_exc()}"
         print(error_detail)
-
         return {
             "commodity": commodity,
             "advice": "Unable to generate market advice at this time. Please try again later.",
@@ -667,6 +658,7 @@ def get_ai_market_advisor(commodity: str, month: Optional[str] = None):
             "recommendations": [],
             "error": str(e)
         }
+
 
 @app.get("/analysis")
 def full_analysis(commodity: str, month: str, market: str = "All Markets", exact: bool = False):
@@ -681,34 +673,29 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
     if commodity:
         if exact:
             df = df[df['commodity'].str.lower() == commodity.lower()]
-            print(f"DEBUG: Using EXACT match for '{commodity}': {len(df)} records")
         else:
-            df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
-            print(f"DEBUG: Using PARTIAL match for '{commodity}': {len(df)} records")
+            # Use regex=False so parentheses and other special chars are treated literally
+            df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
 
     df = df[df['month_name'].str.lower() == month.lower()]
-    print(f"DEBUG: After month filter ({month}): {len(df)} records")
 
     if market != "All Markets":
         df = df[df['market'].str.lower() == market.lower()]
-        print(f"DEBUG: After market filter ({market}): {len(df)} records")
 
     if df.empty:
-        print("DEBUG: No data found after filtering!")
         return {
             "chart_data": [],
             "metrics": {
                 "price_per_kg": {"avg": 0, "max": 0, "min": 0},
-                "price_per_bag": {"avg": 0, "max": 0, "min": 0}
+                "price_per_bag": {"avg": 0, "max": 0, "min": 0},
+                "price_per_tonne": {"avg": 0, "max": 0, "min": 0}
             },
             "strategic_sourcing": None
         }
 
     df['price_per_kg'] = pd.to_numeric(df['price_per_kg'], errors='coerce').fillna(0)
     df['price_per_bag'] = pd.to_numeric(df['price_per_bag'], errors='coerce').fillna(0)
-
-    unique_commodities = df['commodity'].unique().tolist()
-    print(f"DEBUG: Unique commodities in result: {unique_commodities}")
+    df['price_per_tonne'] = df['price_per_kg'] * 1000
 
     strategic_sourcing = None
     if not df.empty and len(df['market'].unique()) > 1:
@@ -730,20 +717,22 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
                 "best_buy": {
                     "market": market_avg.loc[cheapest_idx, 'market'],
                     "price_per_kg": round(float(market_avg.loc[cheapest_idx, 'price_per_kg']), 2),
-                    "price_per_bag": round(float(market_avg.loc[cheapest_idx, 'price_per_bag']), 2)
+                    "price_per_bag": round(float(market_avg.loc[cheapest_idx, 'price_per_bag']), 2),
+                    "price_per_tonne": round(float(market_avg.loc[cheapest_idx, 'price_per_kg']) * 1000, 2)
                 },
                 "worst_market": {
                     "market": market_avg.loc[expensive_idx, 'market'],
                     "price_per_kg": round(float(market_avg.loc[expensive_idx, 'price_per_kg']), 2),
-                    "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2)
+                    "price_per_bag": round(float(market_avg.loc[expensive_idx, 'price_per_bag']), 2),
+                    "price_per_tonne": round(float(market_avg.loc[expensive_idx, 'price_per_kg']) * 1000, 2)
                 }
             }
 
-    chart_data_df = df[['market', 'price_per_kg', 'price_per_bag', 'start_time', 'commodity']].copy()
-    chart_data_df['price_per_tonne'] = (chart_data_df['price_per_kg'].astype(float) * 1000).astype(str)
+    chart_data_df = df[['market', 'price_per_kg', 'price_per_bag', 'price_per_tonne', 'start_time', 'commodity']].copy()
     chart_data_df['start_time'] = chart_data_df['start_time'].astype(str)
     chart_data_df['price_per_kg'] = chart_data_df['price_per_kg'].astype(str)
     chart_data_df['price_per_bag'] = chart_data_df['price_per_bag'].astype(str)
+    chart_data_df['price_per_tonne'] = chart_data_df['price_per_tonne'].astype(str)
 
     return {
         "chart_data": chart_data_df.to_dict(orient='records'),
@@ -757,6 +746,11 @@ def full_analysis(commodity: str, month: str, market: str = "All Markets", exact
                 "avg": round(float(df['price_per_bag'].mean()), 2),
                 "max": float(df['price_per_bag'].max()),
                 "min": float(df['price_per_bag'].min())
+            },
+            "price_per_tonne": {
+                "avg": round(float(df['price_per_tonne'].mean()), 2),
+                "max": float(df['price_per_tonne'].max()),
+                "min": float(df['price_per_tonne'].min())
             }
         },
         "strategic_sourcing": strategic_sourcing
@@ -774,19 +768,6 @@ def get_filtered_prices(
     page: int = 1,
     page_size: int = 100
 ):
-    """
-    Get filtered price data with pagination and search
-
-    Parameters:
-    - commodity: Filter by commodity name
-    - market: Filter by market
-    - state: Filter by state
-    - month: Filter by month name
-    - exact: Use exact matching instead of partial
-    - search: Search across commodity, market, state, agent_code
-    - page: Page number
-    - page_size: Records per page
-    """
     try:
         df = fetch_data()
 
@@ -803,9 +784,6 @@ def get_filtered_prices(
                 }
             }
 
-        df['price_per_tonne'] = pd.to_numeric(df['price_per_kg'], errors='coerce') * 1000
-
-        # Handle search parameter (searches across multiple fields)
         if search:
             search_lower = search.lower()
             df = df[
@@ -814,13 +792,11 @@ def get_filtered_prices(
                 df['state'].str.lower().str.contains(search_lower, na=False) |
                 df['agent_code'].astype(str).str.lower().str.contains(search_lower, na=False)
             ]
-
-        # Existing filters (only apply if search is not used)
         elif commodity:
             if exact:
                 df = df[df['commodity'].str.lower() == commodity.lower()]
             else:
-                df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+                df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
 
         if market and not search:
             df = df[df['market'].str.contains(market, case=False, na=False)]
@@ -833,30 +809,29 @@ def get_filtered_prices(
             df['month_name'] = df['start_time'].dt.strftime('%B')
             df = df[df['month_name'].str.lower() == month.lower()]
 
+        # Add tonne column
+        df = add_tonne_column(df)
+
         # Calculate % change
         df = df.sort_values(['commodity', 'market', 'start_time'])
         df['price_per_kg_numeric'] = pd.to_numeric(df['price_per_kg'], errors='coerce')
         df['percent_change'] = df.groupby(['commodity', 'market'])['price_per_kg_numeric'].pct_change(periods=-1) * 100
         df['percent_change'] = df['percent_change'].round(2)
 
-        # Add change indicator
         df['change_indicator'] = df['percent_change'].apply(
             lambda x: '📈' if pd.notna(x) and x > 0
             else '📉' if pd.notna(x) and x < 0
             else '➡️'
         )
 
-        # Format percent change
         df['percent_change'] = df['percent_change'].apply(
             lambda x: f"+{x}%" if pd.notna(x) and x > 0
             else f"{x}%" if pd.notna(x) and x < 0
             else "None"
         )
 
-        # Sort by most recent
         df = df.sort_values('start_time', ascending=False)
 
-        # Pagination
         total_records = len(df)
         total_pages = (total_records + page_size - 1) // page_size
 
@@ -886,7 +861,7 @@ def get_filtered_prices(
 
 
 # ============================================================
-# FILTER ENDPOINTS (OPTIMIZED)
+# FILTER ENDPOINTS
 # ============================================================
 
 @app.get("/filters/commodities")
@@ -901,9 +876,7 @@ def get_commodity_list():
         with engine.connect() as conn:
             result = conn.execute(query)
             commodities = [row[0] for row in result]
-
         return {"commodities": commodities, "count": len(commodities)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch commodities: {str(e)}")
 
@@ -920,9 +893,7 @@ def get_market_list():
         with engine.connect() as conn:
             result = conn.execute(query)
             markets = [row[0] for row in result]
-
         return {"markets": markets, "count": len(markets)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch markets: {str(e)}")
 
@@ -939,9 +910,7 @@ def get_state_list():
         with engine.connect() as conn:
             result = conn.execute(query)
             states = [row[0] for row in result]
-
         return {"states": states, "count": len(states)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch states: {str(e)}")
 
@@ -958,9 +927,7 @@ def get_year_list():
         with engine.connect() as conn:
             result = conn.execute(query)
             years = [str(int(row[0])) for row in result]
-
         return {"years": years, "count": len(years)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch years: {str(e)}")
 
@@ -977,9 +944,7 @@ def get_other_sources_locations():
         with engine.connect() as conn:
             result = conn.execute(query)
             locations = [row[0] for row in result]
-
         return {"locations": locations, "count": len(locations)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch locations: {str(e)}")
 
@@ -996,9 +961,7 @@ def get_other_sources_commodities():
         with engine.connect() as conn:
             result = conn.execute(query)
             commodities = [row[0] for row in result]
-
         return {"commodities": commodities, "count": len(commodities)}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch other sources commodities: {str(e)}")
 
@@ -1006,50 +969,25 @@ def get_other_sources_commodities():
 @app.get("/filters/all")
 def get_all_filters():
     try:
-        commodities_query = """
-            SELECT DISTINCT TRIM(commodity) AS commodity
-            FROM prices
-            WHERE commodity IS NOT NULL AND commodity != ''
-            ORDER BY commodity
-        """
-        markets_query = """
-            SELECT DISTINCT TRIM(market) AS market
-            FROM prices
-            WHERE market IS NOT NULL AND market != ''
-            ORDER BY market
-        """
-        states_query = """
-            SELECT DISTINCT TRIM(state) AS state
-            FROM prices
-            WHERE state IS NOT NULL AND state != ''
-            ORDER BY state
-        """
-        years_query = """
-            SELECT DISTINCT EXTRACT(YEAR FROM start_time) AS year
-            FROM prices
-            WHERE start_time IS NOT NULL
-            ORDER BY year DESC
-        """
-        other_commodities_query = """
-            SELECT DISTINCT TRIM(commodity) AS commodity
-            FROM other_sources
-            WHERE commodity IS NOT NULL AND commodity != ''
-            ORDER BY commodity
-        """
-        other_locations_query = """
-            SELECT DISTINCT TRIM(location) AS location
-            FROM other_sources
-            WHERE location IS NOT NULL AND location != ''
-            ORDER BY location
-        """
-
         with engine.connect() as conn:
-            commodities = [row[0] for row in conn.execute(text(commodities_query))]
-            markets = [row[0] for row in conn.execute(text(markets_query))]
-            states = [row[0] for row in conn.execute(text(states_query))]
-            years = [str(int(row[0])) for row in conn.execute(text(years_query))]
-            other_commodities = [row[0] for row in conn.execute(text(other_commodities_query))]
-            other_locations = [row[0] for row in conn.execute(text(other_locations_query))]
+            commodities = [row[0] for row in conn.execute(text(
+                "SELECT DISTINCT TRIM(commodity) FROM prices WHERE commodity IS NOT NULL AND commodity != '' ORDER BY commodity"
+            ))]
+            markets = [row[0] for row in conn.execute(text(
+                "SELECT DISTINCT TRIM(market) FROM prices WHERE market IS NOT NULL AND market != '' ORDER BY market"
+            ))]
+            states = [row[0] for row in conn.execute(text(
+                "SELECT DISTINCT TRIM(state) FROM prices WHERE state IS NOT NULL AND state != '' ORDER BY state"
+            ))]
+            years = [str(int(row[0])) for row in conn.execute(text(
+                "SELECT DISTINCT EXTRACT(YEAR FROM start_time) FROM prices WHERE start_time IS NOT NULL ORDER BY 1 DESC"
+            ))]
+            other_commodities = [row[0] for row in conn.execute(text(
+                "SELECT DISTINCT TRIM(commodity) FROM other_sources WHERE commodity IS NOT NULL AND commodity != '' ORDER BY commodity"
+            ))]
+            other_locations = [row[0] for row in conn.execute(text(
+                "SELECT DISTINCT TRIM(location) FROM other_sources WHERE location IS NOT NULL AND location != '' ORDER BY location"
+            ))]
 
         return {
             "commodities": commodities,
@@ -1065,7 +1003,6 @@ def get_all_filters():
                 "locations": other_locations
             }
         }
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch filters: {str(e)}")
 
@@ -1082,7 +1019,7 @@ def get_market_comparison(commodity: str, month: str):
         df_internal['month_name'] = df_internal['start_time'].dt.strftime('%B')
 
         df_internal = df_internal[
-            (df_internal['commodity'].str.contains(commodity, case=False, na=False)) &
+            (df_internal['commodity'].str.contains(commodity, case=False, na=False, regex=False)) &
             (df_internal['month_name'].str.lower() == month.lower())
         ]
         df_internal['price_per_kg'] = pd.to_numeric(df_internal['price_per_kg'], errors='coerce')
@@ -1098,8 +1035,11 @@ def get_market_comparison(commodity: str, month: str):
                         "source": "Internal (Kasuwa)",
                         "market": mkt,
                         "avg_price_per_kg": round(float(avg_price), 2),
+                        "avg_price_per_tonne": round(float(avg_price) * 1000, 2),
                         "min_price": float(mkt_data['price_per_kg'].min()),
-                        "max_price": float(mkt_data['price_per_kg'].max())
+                        "max_price": float(mkt_data['price_per_kg'].max()),
+                        "min_price_per_tonne": round(float(mkt_data['price_per_kg'].min()) * 1000, 2),
+                        "max_price_per_tonne": round(float(mkt_data['price_per_kg'].max()) * 1000, 2),
                     })
 
         df_external = fetch_other_sources_data()
@@ -1107,7 +1047,7 @@ def get_market_comparison(commodity: str, month: str):
         df_external['month_name'] = df_external['date'].dt.strftime('%B')
 
         df_external = df_external[
-            (df_external['commodity'].str.contains(commodity, case=False, na=False)) &
+            (df_external['commodity'].str.contains(commodity, case=False, na=False, regex=False)) &
             (df_external['month_name'].str.lower() == month.lower())
         ]
         df_external['price'] = pd.to_numeric(df_external['price'], errors='coerce')
@@ -1125,8 +1065,11 @@ def get_market_comparison(commodity: str, month: str):
                         "source": "External",
                         "market": loc,
                         "avg_price_per_kg": round(float(avg_kg), 2),
+                        "avg_price_per_tonne": round(float(avg_kg) * 1000, 2),
                         "min_price": float(loc_data['price'].min() / 100 if is_bag else loc_data['price'].min()),
-                        "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max())
+                        "max_price": float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max()),
+                        "min_price_per_tonne": round(float(loc_data['price'].min() / 100 if is_bag else loc_data['price'].min()) * 1000, 2),
+                        "max_price_per_tonne": round(float(loc_data['price'].max() / 100 if is_bag else loc_data['price'].max()) * 1000, 2),
                     })
 
         all_markets = internal_markets + external_markets
@@ -1140,7 +1083,7 @@ def get_market_comparison(commodity: str, month: str):
                 "total_markets": 0,
                 "internal_count": 0,
                 "external_count": 0,
-                "message": f"No markets found carrying '{commodity}' in {month}. Try a different month or commodity."
+                "message": f"No markets found carrying '{commodity}' in {month}."
             }
 
         return {
@@ -1179,7 +1122,7 @@ def compare_two_markets(
                 df['start_time'] = pd.to_datetime(df['start_time'])
                 df['month_name'] = df['start_time'].dt.strftime('%B')
 
-                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
                 if commodity_df.empty:
                     return {
                         "found": False,
@@ -1210,15 +1153,19 @@ def compare_two_markets(
 
                 month_df['price_per_kg'] = pd.to_numeric(month_df['price_per_kg'], errors='coerce')
                 month_df['price_per_bag'] = pd.to_numeric(month_df['price_per_bag'], errors='coerce')
+                avg_kg = float(month_df['price_per_kg'].mean())
 
                 return {
                     "found": True,
                     "market": market,
                     "source": "Internal (Kasuwa)",
-                    "avg_price_per_kg": round(float(month_df['price_per_kg'].mean()), 2),
+                    "avg_price_per_kg": round(avg_kg, 2),
                     "avg_price_per_bag": round(float(month_df['price_per_bag'].mean()), 2),
+                    "avg_price_per_tonne": round(avg_kg * 1000, 2),
                     "min_price_per_kg": float(month_df['price_per_kg'].min()),
                     "max_price_per_kg": float(month_df['price_per_kg'].max()),
+                    "min_price_per_tonne": round(float(month_df['price_per_kg'].min()) * 1000, 2),
+                    "max_price_per_tonne": round(float(month_df['price_per_kg'].max()) * 1000, 2),
                     "record_count": len(month_df)
                 }
 
@@ -1227,7 +1174,7 @@ def compare_two_markets(
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 df['month_name'] = df['date'].dt.strftime('%B')
 
-                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False)]
+                commodity_df = df[df['commodity'].str.contains(commodity, case=False, na=False, regex=False)]
                 if commodity_df.empty:
                     return {
                         "found": False,
@@ -1267,8 +1214,11 @@ def compare_two_markets(
                     "source": "External",
                     "avg_price_per_kg": round(float(avg_kg), 2),
                     "avg_price_per_bag": round(float(avg_price if is_bag else avg_kg * 100), 2),
+                    "avg_price_per_tonne": round(float(avg_kg) * 1000, 2),
                     "min_price_per_kg": float(month_df['price'].min() / 100 if is_bag else month_df['price'].min()),
                     "max_price_per_kg": float(month_df['price'].max() / 100 if is_bag else month_df['price'].max()),
+                    "min_price_per_tonne": round(float(month_df['price'].min() / 100 if is_bag else month_df['price'].min()) * 1000, 2),
+                    "max_price_per_tonne": round(float(month_df['price'].max() / 100 if is_bag else month_df['price'].max()) * 1000, 2),
                     "record_count": len(month_df)
                 }
 
@@ -1287,14 +1237,13 @@ def compare_two_markets(
 
         price_diff_kg = market2_data['avg_price_per_kg'] - market1_data['avg_price_per_kg']
         price_diff_bag = market2_data['avg_price_per_bag'] - market1_data['avg_price_per_bag']
+        price_diff_tonne = market2_data['avg_price_per_tonne'] - market1_data['avg_price_per_tonne']
         percentage_diff = (
             price_diff_kg / market1_data['avg_price_per_kg'] * 100
         ) if market1_data['avg_price_per_kg'] > 0 else 0
 
         cheaper_market = market1 if market1_data['avg_price_per_kg'] < market2_data['avg_price_per_kg'] else market2
         more_expensive = market2 if cheaper_market == market1 else market1
-
-        # Resolve which data belongs to cheaper and more expensive market
         cheaper_data = market1_data if cheaper_market == market1 else market2_data
         expensive_data = market1_data if more_expensive == market1 else market2_data
 
@@ -1311,19 +1260,23 @@ def compare_two_markets(
                     "market": cheaper_market,
                     "avg_price_per_kg": cheaper_data['avg_price_per_kg'],
                     "avg_price_per_bag": cheaper_data['avg_price_per_bag'],
+                    "avg_price_per_tonne": cheaper_data['avg_price_per_tonne'],
                     "label": "✅ Lowest Price — Buy Here"
                 },
                 "avoid": {
                     "market": more_expensive,
                     "avg_price_per_kg": expensive_data['avg_price_per_kg'],
                     "avg_price_per_bag": expensive_data['avg_price_per_bag'],
+                    "avg_price_per_tonne": expensive_data['avg_price_per_tonne'],
                     "label": "🚨 Highest Price — Avoid or Negotiate"
                 },
                 "price_difference_per_kg": round(abs(price_diff_kg), 2),
                 "price_difference_per_bag": round(abs(price_diff_bag), 2),
+                "price_difference_per_tonne": round(abs(price_diff_tonne), 2),
                 "percentage_difference": round(abs(percentage_diff), 2),
                 "savings_per_kg": round(abs(price_diff_kg), 2),
-                "savings_per_bag": round(abs(price_diff_bag), 2)
+                "savings_per_bag": round(abs(price_diff_bag), 2),
+                "savings_per_tonne": round(abs(price_diff_tonne), 2)
             }
         }
 
@@ -1333,6 +1286,7 @@ def compare_two_markets(
             status_code=500,
             detail=f"Comparison failed: {str(e)}\n{traceback.format_exc()}"
         )
+
 
 # ============================================================
 # GAP ANALYSIS ENDPOINT
@@ -1367,14 +1321,17 @@ def get_gap_analysis(
         for commodity in df['commodity'].unique():
             commodity_df = df[df['commodity'] == commodity]
             market_avg = commodity_df.groupby('market')['price_per_kg'].mean()
+            min_kg = round(float(commodity_df['price_per_kg'].min()), 2)
+            max_kg = round(float(commodity_df['price_per_kg'].max()), 2)
+            avg_kg = round(float(commodity_df['price_per_kg'].mean()), 2)
             results.append({
                 "commodity": commodity,
-                "min_price": round(float(commodity_df['price_per_kg'].min()), 2),
-                "max_price": round(float(commodity_df['price_per_kg'].max()), 2),
-                "avg_price": round(float(commodity_df['price_per_kg'].mean()), 2),
-                "min_price_per_tonne": round(float(commodity_df['price_per_kg'].min()) * 1000, 2),
-                "max_price_per_tonne": round(float(commodity_df['price_per_kg'].max()) * 1000, 2),
-                "avg_price_per_tonne": round(float(commodity_df['price_per_kg'].mean()) * 1000, 2),
+                "min_price": min_kg,
+                "max_price": max_kg,
+                "avg_price": avg_kg,
+                "min_price_per_tonne": round(min_kg * 1000, 2),
+                "max_price_per_tonne": round(max_kg * 1000, 2),
+                "avg_price_per_tonne": round(avg_kg * 1000, 2),
                 "cheapest_source": market_avg.idxmin(),
                 "top_selling_market": market_avg.idxmax()
             })
@@ -1444,4 +1401,3 @@ def bulk_upload_other_sources(records: List[OtherSourceRecord], token: str = Dep
         return {"status": "success", "message": f"Added {len(records)} other sources records"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
-        
