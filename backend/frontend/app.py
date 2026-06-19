@@ -33,7 +33,7 @@ COMMODITY_INFO = {
     "Honey Beans (Oloyin)":  {"desc": "Premium sweet brown beans (Oloyin).", "markets": "Oyingbo and Dawanau", "abundance": "Oct to Dec", "note": "Often carries a price premium."},
     "White Maize":           {"desc": "Primary cereal crop for food and industry.", "markets": "Giwa, Makarfi, and Funtua", "abundance": "Sept to Nov", "note": "Correlates strongly with Sorghum trends."},
     "Millet":                {"desc": "Fast-growing cereal for the lean season.", "markets": "Dawanau and Potiskum", "abundance": "Sept and Oct", "note": "First harvest after rainy season."},
-    "Paddy Rice":            {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
+    "Rice Paddy":            {"desc": "Raw rice before milling/processing.", "markets": "Argungu and Kano", "abundance": "Nov and Dec", "note": "Foundations for processed rice pricing."},
     "Processed Rice":        {"desc": "Milled and polished local rice.", "markets": "Kano, Lagos, and Onitsha", "abundance": "Year-round", "note": "Price fluctuates with fuel/milling costs."},
     "Sesame":                {"desc": "Oilseed crop with strong export demand.", "markets": "Benue and Nassarawa", "abundance": "Oct and Nov", "note": "Nigeria is one of Africa's top sesame exporters."},
     "Soybeans":              {"desc": "A raw leguminous crop used for oil and feed.", "markets": "Mubi, Giwa, and Kumo", "abundance": "Nov, Dec, and April", "note": "A key industrial driver for the poultry and vegetable oil sectors."},
@@ -79,7 +79,7 @@ def normalize_commodity_for_display(name):
     if "honey" in name_lower:
         return "Honey Beans (Oloyin)"
     if "paddy" in name_lower or ("rice" in name_lower and "paddy" in name_lower):
-        return "Paddy Rice"
+        return "Rice Paddy"
     if "rice" in name_lower and "process" in name_lower:
         return "Processed Rice"
     if "millet" in name_lower:
