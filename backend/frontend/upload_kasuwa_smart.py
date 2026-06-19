@@ -71,11 +71,11 @@ def standardize_commodity_name(commodity):
     'maize':               'White Maize',
 
     # Rice
-    'rice paddy':          'Rice Paddy',
-    'Rice Paddy':          'Rice Paddy',
-    'rice processed':      'Processed Rice',
-    'processed rice':      'Processed Rice',
-    'rice  processed':     'Processed Rice',
+    'rice paddy':             'Rice Paddy',
+    'paddy rice':             'Rice Paddy',
+    'rice processed':         'Processed Rice',
+    'processed rice':         'Processed Rice',
+    'rice  processed':        'Processed Rice',
 
     # Sorghum
     'sorghum red':         'Red Sorghum',
