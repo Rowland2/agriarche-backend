@@ -43,55 +43,56 @@ def standardize_commodity_name(commodity):
     commodity = commodity.strip()
     
     STANDARD_NAMES = {
-        # Soybeans
-        'soya beans': 'Soybeans',
-        'soya bean': 'Soybeans',
-        'soy beans': 'Soybeans',
-        'soybeans': 'Soybeans',
-        
-        # Groundnut Gargaja (all typos)
-        'groundnut gargaja': 'Groundnut Gargaja',
-        'groundnut garjaga': 'Groundnut Gargaja',  # Wrong spelling
-        'groundnut gajaga': 'Groundnut Gargaja',   # Another typo
-        'groundut gargaja': 'Groundnut Gargaja',   # Missing 'n'
-        
-        # Groundnut Kampala (all typos)
-        'groundnut kampala': 'Groundnut Kampala',  # Lowercase k
-        'groundut kampala': 'Groundnut Kampala',   # Missing 'n'
-        'groundnut Kampala': 'Groundnut Kampala',  # Mixed case
-        
-        # White Beans
-        'white beans': 'White Beans (Zapa)',
-        'white beans (zapa)': 'White Beans (Zapa)',
-        'white beans (misra)': 'White Beans (Misra)',
-        
-        # Rice
-        'rice paddy': 'Paddy Rice',
-        'paddy rice': 'Paddy Rice',
-        'rice processed': 'Rice Processed',
-        'processed rice': 'Rice Processed',
-        
-        # Cowpea
-        'cowpea white': 'Cowpea White',
-        'cowpea brown': 'Cowpea Brown',
-        
-        # Maize
-        'maize white': 'Maize White',
-        'maize': 'Maize',
-        
-        # Sorghum
-        'sorghum red': 'Sorghum Red',
-        'sorghum white': 'Sorghum White',
-        'sorghum yellow': 'Sorghum Yellow',
-        'sorghum': 'Sorghum',
-        
-        # Honey Beans
-        'honey beans': 'Honey Beans',
-        'honeybeans': 'Honey Beans',
-        
-        # Millet
-        'millet': 'Millet',
-    }
+    # Cowpea
+    'cowpea brown':        'Brown Cowpea',
+    'brown cowpea':        'Brown Cowpea',
+    'cowpea white':        'White Cowpea',
+    'white cowpea':        'White Cowpea',
+
+    # Groundnut
+    'groundnut gargaja':   'Groundnut (Gargaja)',
+    'groundnut kampala':   'Groundnut (Kampala)',
+    'groundnut kamapal':   'Groundnut (Kampala)',
+    'groundut kampala':    'Groundnut (Kampala)',
+    'groundnut kwachamba': 'Groundnut (Kwachamba)',
+
+    # Hibiscus
+    'hibiscus':            'Hibiscus (Whole)',
+    'hibiscus whole':      'Hibiscus (Whole)',
+
+    # Honey Beans
+    'honey beans':         'Honey Beans (Oloyin)',
+    'honeybeans':          'Honey Beans (Oloyin)',
+    'honey bean':          'Honey Beans (Oloyin)',
+
+    # Maize
+    'maize white':         'White Maize',
+    'white maize':         'White Maize',
+    'maize':               'White Maize',
+
+    # Rice
+    'rice paddy':          'Rice Paddy',
+    'Rice Paddy':          'Rice Paddy',
+    'rice processed':      'Processed Rice',
+    'processed rice':      'Processed Rice',
+    'rice  processed':     'Processed Rice',
+
+    # Sorghum
+    'sorghum red':         'Red Sorghum',
+    'red sorghum':         'Red Sorghum',
+    'sorghum white':       'White Sorghum',
+    'white sorghum':       'White Sorghum',
+    'sorghum yellow':      'Yellow Sorghum',
+    'yellow sorghum':      'Yellow Sorghum',
+    'sorghum':             'Sorghum',
+
+    # Others
+    'soybeans':            'Soybeans',
+    'soya beans':          'Soybeans',
+    'soybean':             'Soybeans',
+    'millet':              'Millet',
+    'sesame':              'Sesame',
+}
     
     commodity_lower = commodity.lower()
     if commodity_lower in STANDARD_NAMES:
